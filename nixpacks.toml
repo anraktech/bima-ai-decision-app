@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ['nodejs_18', 'python3', 'pkg-config', 'libtool', 'autoconf', 'automake']
+
+[phases.install]
+cmds = ['npm install --verbose']
+
+[phases.build]
+cmds = ['npm run build:prod']
+
+[start]
+cmd = 'node server/index.js'
