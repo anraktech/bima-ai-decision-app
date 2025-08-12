@@ -2824,6 +2824,11 @@ app.get('/api/admin4921/stats', authenticateAdmin, (req, res) => {
   }
 });
 
+// Health check endpoint for Railway
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // API-only server for Railway deployment
 // Frontend is served by Vercel separately
 

@@ -8,4 +8,4 @@ cmds = ['npm install --verbose']
 cmds = ['npm run build:prod']
 
 [start]
-cmd = 'node server/index.js'
+cmd = 'node server/railway-server.js'
