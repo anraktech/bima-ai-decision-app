@@ -9,5 +9,6 @@ channel = "stable-22_11"
 [deployment]
 run = ["sh", "-c", "node start.js"]
 
-[web]
-externalPort = 3001
+[[ports]]
+localPort = 3001
+externalPort = 80
