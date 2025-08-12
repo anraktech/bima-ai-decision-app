@@ -2804,12 +2804,17 @@ app.get('/api/admin4921/stats', authenticateAdmin, (req, res) => {
 });
 
 // Catch-all route to serve React app for client-side routing
-app.get('*', (req, res) => {
-  const indexPath = join(__dirname, '../dist/index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
+// Must be last route
+app.use((req, res) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api')) {
+    const indexPath = join(__dirname, '../dist/index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('Frontend not built. Please build the frontend first.');
+    }
   } else {
-    res.status(404).send('Frontend not built. Run: npx vite build');
+    res.status(404).json({ error: 'Not found' });
   }
 });
 
