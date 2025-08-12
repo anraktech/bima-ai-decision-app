@@ -13,7 +13,7 @@ export const useModelProviders = () => {
     const fetchProviders = async () => {
       try {
         setLoading(true);
-        const response = await fetch('${API_URL}/api/models/providers');
+        const response = await fetch(`${API_URL}/api/models/providers`);
         
         if (response.ok) {
           const data = await response.json();

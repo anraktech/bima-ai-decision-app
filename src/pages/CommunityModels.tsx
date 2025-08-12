@@ -33,7 +33,7 @@ export const CommunityModels = () => {
 
   const fetchCommunityModels = async () => {
     try {
-      const response = await fetch('${API_URL}/api/models/community', {
+      const response = await fetch(`${API_URL}/api/models/community`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -53,7 +53,7 @@ export const CommunityModels = () => {
   const importModel = async (shareToken: string) => {
     setImportingModel(shareToken);
     try {
-      const response = await fetch('${API_URL}/api/models/import', {
+      const response = await fetch(`${API_URL}/api/models/import`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

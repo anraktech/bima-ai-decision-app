@@ -66,7 +66,7 @@ export const Profile = () => {
 
   const fetchUsageStats = async () => {
     try {
-      const response = await fetch('${API_URL}/api/usage/stats', {
+      const response = await fetch(`${API_URL}/api/usage/stats`, {
         headers: { 
           'Authorization': `Bearer ${token}` 
         }

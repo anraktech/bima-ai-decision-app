@@ -93,7 +93,7 @@ export const CreateModel = () => {
 
     try {
       // Create the model first
-      const modelResponse = await fetch('${API_URL}/api/models', {
+      const modelResponse = await fetch(`${API_URL}/api/models`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

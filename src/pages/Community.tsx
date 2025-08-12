@@ -42,7 +42,7 @@ export function Community() {
     const loadPosts = async () => {
       try {
         // No authentication needed for viewing posts (public forum)
-        const response = await fetch('${API_URL}/api/community/posts');
+        const response = await fetch(`${API_URL}/api/community/posts`);
         
         if (response.ok) {
           const data = await response.json();
@@ -131,7 +131,7 @@ export function Community() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${API_URL}/api/community/posts', {
+      const response = await fetch(`${API_URL}/api/community/posts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

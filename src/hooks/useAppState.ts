@@ -126,7 +126,7 @@ export const useAppState = () => {
       // Track conversation start in backend
       const token = localStorage.getItem('token');
       if (token) {
-        fetch('${API_URL}/api/conversations', {
+        fetch(`${API_URL}/api/conversations`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -327,7 +327,7 @@ export const useAppState = () => {
           console.log('Token usage for', activePanel.model?.id, ':', tokenUsage);
           const authToken = localStorage.getItem('token');
           if (authToken) {
-            fetch('${API_URL}/api/usage/track', {
+            fetch(`${API_URL}/api/usage/track`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

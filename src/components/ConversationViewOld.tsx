@@ -53,7 +53,7 @@ export const ConversationView = ({
       const createLiveSession = async () => {
         try {
           const token = localStorage.getItem('token');
-          await fetch('${API_URL}/api/live/create', {
+          await fetch(`${API_URL}/api/live/create`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -89,7 +89,7 @@ export const ConversationView = ({
       const postMessage = async () => {
         try {
           const token = localStorage.getItem('token');
-          await fetch('${API_URL}/api/live/message', {
+          await fetch(`${API_URL}/api/live/message`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

@@ -26,7 +26,7 @@ export function ImportModelModal({ isOpen, onClose, onImport }: ImportModelModal
     setError('');
 
     try {
-      const response = await fetch('${API_URL}/api/models/import', {
+      const response = await fetch(`${API_URL}/api/models/import`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

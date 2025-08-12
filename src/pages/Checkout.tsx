@@ -91,7 +91,7 @@ const CheckoutForm = () => {
       }
 
       // Create subscription on your backend
-      const response = await fetch('${API_URL}/api/billing/create-subscription', {
+      const response = await fetch(`${API_URL}/api/billing/create-subscription`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

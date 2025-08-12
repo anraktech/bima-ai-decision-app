@@ -102,7 +102,7 @@ export const AdminDashboard = () => {
   const handleLogin = async () => {
     setLoginError('');
     try {
-      const response = await fetch('${API_URL}/api/admin4921/login', {
+      const response = await fetch(`${API_URL}/api/admin4921/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,13 +136,13 @@ export const AdminDashboard = () => {
 
     try {
       const [usersRes, postsRes, statsRes] = await Promise.all([
-        fetch('${API_URL}/api/admin4921/users', {
+        fetch(`${API_URL}/api/admin4921/users`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch('${API_URL}/api/admin4921/community/posts', {
+        fetch(`${API_URL}/api/admin4921/community/posts`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch('${API_URL}/api/admin4921/stats', {
+        fetch(`${API_URL}/api/admin4921/stats`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);

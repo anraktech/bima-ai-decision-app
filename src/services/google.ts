@@ -42,7 +42,7 @@ export async function generateGoogleResponse(
     });
   }
 
-  const response = await fetch('${API_URL}/api/chat/completions', {
+  const response = await fetch(`${API_URL}/api/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

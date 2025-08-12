@@ -123,11 +123,11 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (!token) return;
 
       // First get current user data to ensure we have the latest subscription tier
-      const userResponse = await fetch('${API_URL}/api/auth/me', {
+      const userResponse = await fetch(`${API_URL}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      const response = await fetch('${API_URL}/api/usage/stats', {
+      const response = await fetch(`${API_URL}/api/usage/stats`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -185,7 +185,7 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('${API_URL}/api/usage/stats', {
+      const response = await fetch(`${API_URL}/api/usage/stats`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -363,7 +363,7 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (!token) return;
 
       // Call the actual tracking API
-      const response = await fetch('${API_URL}/api/usage/track', {
+      const response = await fetch(`${API_URL}/api/usage/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -45,7 +45,7 @@ export const Models = () => {
 
   const fetchModels = async () => {
     try {
-      const response = await fetch('${API_URL}/api/models', {
+      const response = await fetch(`${API_URL}/api/models`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

@@ -18,7 +18,7 @@ export const useCustomModels = () => {
   const fetchCustomModels = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('${API_URL}/api/models', {
+      const response = await fetch(`${API_URL}/api/models`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
