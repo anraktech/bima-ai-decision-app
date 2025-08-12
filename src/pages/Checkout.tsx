@@ -5,9 +5,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { useBilling } from '../contexts/BillingContext';
-import { 
 import { API_URL, getApiUrl, getWsUrl } from '../config/api';
-
+import { 
   CreditCard, 
   Lock, 
   CheckCircle, 
