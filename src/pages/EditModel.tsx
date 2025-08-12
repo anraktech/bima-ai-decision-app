@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Save, Upload, X, FileText, ChevronDown, Sparkles, Bot, Database } from 'lucide-react';
 import { AI_MODELS } from '../types';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 
 interface UploadedDocument {
   id?: number;
@@ -47,7 +49,7 @@ export const EditModel = () => {
   useEffect(() => {
     const loadModel = async () => {
       try {
-        const response = await fetch(`http://localhost:3001/api/models/${id}`, {
+        const response = await fetch(`${API_URL}/api/models/${id}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -138,7 +140,7 @@ export const EditModel = () => {
     // If it's an existing document (has id), delete it from server
     if (doc.id) {
       try {
-        await fetch(`http://localhost:3001/api/models/${id}/documents/${doc.id}`, {
+        await fetch(`${API_URL}/api/models/${id}/documents/${doc.id}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -165,7 +167,7 @@ export const EditModel = () => {
 
     try {
       // Update the model first
-      const modelResponse = await fetch(`http://localhost:3001/api/models/${id}`, {
+      const modelResponse = await fetch(`${API_URL}/api/models/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -193,7 +195,7 @@ export const EditModel = () => {
           }
         });
 
-        await fetch(`http://localhost:3001/api/models/${id}/documents`, {
+        await fetch(`${API_URL}/api/models/${id}/documents`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`

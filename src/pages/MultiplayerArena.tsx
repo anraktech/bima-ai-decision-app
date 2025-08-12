@@ -6,6 +6,8 @@ import { generateAnthropicResponse, ANTHROPIC_MODELS } from '../services/anthrop
 import { generateGoogleResponse, GOOGLE_MODELS } from '../services/google';
 import { generateGroqResponse, GROQ_MODELS } from '../services/groq';
 import { generateXAIResponse, XAI_MODELS } from '../services/xai';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 // Perplexity removed - models not working properly
 import { generateDeepseekResponse } from '../services/deepseek';
 import { 
@@ -174,7 +176,7 @@ export function MultiplayerArena() {
         wsRef.current.close();
       }
       
-      const ws = new WebSocket('ws://localhost:3001/ws');
+      const ws = new WebSocket('${getWsUrl()}/ws');
       wsRef.current = ws;
       
       ws.onopen = () => {

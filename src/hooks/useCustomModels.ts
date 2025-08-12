@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import type { AIModel } from '../types';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 
 export const useCustomModels = () => {
   const { token } = useAuth();
@@ -16,7 +18,7 @@ export const useCustomModels = () => {
   const fetchCustomModels = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/models', {
+      const response = await fetch('${API_URL}/api/models', {
         headers: {
           'Authorization': `Bearer ${token}`
         }

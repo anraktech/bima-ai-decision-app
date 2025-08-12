@@ -4,6 +4,8 @@ import type { ConversationState, ConversationPanel, Message } from '../types';
 import { formatTimestamp } from '../utils';
 import { TypingIndicator } from './TypingIndicator';
 import { useLiveSession } from '../hooks/useLiveSession';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 
 interface ConversationViewProps {
   conversation: ConversationState;
@@ -51,7 +53,7 @@ export const ConversationView = ({
       const createLiveSession = async () => {
         try {
           const token = localStorage.getItem('token');
-          await fetch('http://localhost:3001/api/live/create', {
+          await fetch('${API_URL}/api/live/create', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -87,7 +89,7 @@ export const ConversationView = ({
       const postMessage = async () => {
         try {
           const token = localStorage.getItem('token');
-          await fetch('http://localhost:3001/api/live/message', {
+          await fetch('${API_URL}/api/live/message', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

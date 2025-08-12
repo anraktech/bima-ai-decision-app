@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Bot, FileText, Trash2, Edit, Calendar, Database, Share2, Copy, Check, X } from 'lucide-react';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 
 interface CustomModel {
   id: number;
@@ -43,7 +45,7 @@ export const Models = () => {
 
   const fetchModels = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/models', {
+      const response = await fetch('${API_URL}/api/models', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -64,7 +66,7 @@ export const Models = () => {
     if (!confirm('Are you sure you want to delete this model?')) return;
 
     try {
-      const response = await fetch(`http://localhost:3001/api/models/${id}`, {
+      const response = await fetch(`${API_URL}/api/models/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -81,7 +83,7 @@ export const Models = () => {
 
   const shareModel = async (id: number) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/models/${id}/share`, {
+      const response = await fetch(`${API_URL}/api/models/${id}/share`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -103,7 +105,7 @@ export const Models = () => {
 
   const revokeShare = async (id: number) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/models/${id}/share`, {
+      const response = await fetch(`${API_URL}/api/models/${id}/share`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -135,7 +137,7 @@ export const Models = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/models/import`, {
+      const response = await fetch(`${API_URL}/api/models/import`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

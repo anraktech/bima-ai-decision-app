@@ -32,7 +32,7 @@ export const generateDeepseekResponse = async (
       ...(userInput ? [{ role: 'user', content: userInput }] : [])
     ];
 
-    const response = await fetch('http://localhost:3001/api/chat/completions', {
+    const response = await fetch('${API_URL}/api/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Radio, Users, Eye, MessageSquare, Bot, User, ArrowLeft, AlertCircle } from 'lucide-react';
 import type { Message } from '../types';
 import { formatTimestamp } from '../utils';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 
 export function LiveViewer() {
   const navigate = useNavigate();
@@ -29,8 +31,8 @@ export function LiveViewer() {
     const pollMessages = async () => {
       try {
         const url = lastTimestampRef.current 
-          ? `http://localhost:3001/api/live/${shareCode.toUpperCase()}/messages?since=${lastTimestampRef.current}`
-          : `http://localhost:3001/api/live/${shareCode.toUpperCase()}/messages`;
+          ? `${API_URL}/api/live/${shareCode.toUpperCase()}/messages?since=${lastTimestampRef.current}`
+          : `${API_URL}/api/live/${shareCode.toUpperCase()}/messages`;
           
         const response = await fetch(url);
         

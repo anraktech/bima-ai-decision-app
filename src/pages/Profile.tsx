@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UsageCard } from '../components/UsageCard';
 import { 
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
   User, 
   Activity, 
   CreditCard, 
@@ -65,7 +67,7 @@ export const Profile = () => {
 
   const fetchUsageStats = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/usage/stats', {
+      const response = await fetch('${API_URL}/api/usage/stats', {
         headers: { 
           'Authorization': `Bearer ${token}` 
         }

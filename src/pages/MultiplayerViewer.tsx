@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { 
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
   MessageSquare, 
   Send, 
   Users, 
@@ -67,7 +69,7 @@ export function MultiplayerViewer() {
   }, []);
   
   const connectWebSocket = () => {
-    const ws = new WebSocket('ws://localhost:3001/ws');
+    const ws = new WebSocket('${getWsUrl()}/ws');
     wsRef.current = ws;
     
     ws.onopen = () => {

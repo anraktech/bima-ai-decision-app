@@ -6,6 +6,8 @@ import { Header } from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { useBilling } from '../contexts/BillingContext';
 import { 
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
   CreditCard, 
   Lock, 
   CheckCircle, 
@@ -90,7 +92,7 @@ const CheckoutForm = () => {
       }
 
       // Create subscription on your backend
-      const response = await fetch('http://localhost:3001/api/billing/create-subscription', {
+      const response = await fetch('${API_URL}/api/billing/create-subscription', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

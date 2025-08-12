@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Radio, Users, Eye, MessageSquare, Bot, User, ArrowLeft, AlertCircle } from 'lucide-react';
 import type { Message } from '../types';
 import { formatTimestamp } from '../utils';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 
 export function LiveViewer() {
   const navigate = useNavigate();
@@ -25,7 +27,7 @@ export function LiveViewer() {
       return;
     }
 
-    const ws = new WebSocket('ws://localhost:3001/ws');
+    const ws = new WebSocket('${getWsUrl()}/ws');
     wsRef.current = ws;
 
     ws.onopen = () => {

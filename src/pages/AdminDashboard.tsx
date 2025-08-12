@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { 
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
   Users, 
   MessageSquare, 
   Database, 
@@ -101,7 +103,7 @@ export const AdminDashboard = () => {
   const handleLogin = async () => {
     setLoginError('');
     try {
-      const response = await fetch('http://localhost:3001/api/admin4921/login', {
+      const response = await fetch('${API_URL}/api/admin4921/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -135,13 +137,13 @@ export const AdminDashboard = () => {
 
     try {
       const [usersRes, postsRes, statsRes] = await Promise.all([
-        fetch('http://localhost:3001/api/admin4921/users', {
+        fetch('${API_URL}/api/admin4921/users', {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch('http://localhost:3001/api/admin4921/community/posts', {
+        fetch('${API_URL}/api/admin4921/community/posts', {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch('http://localhost:3001/api/admin4921/stats', {
+        fetch('${API_URL}/api/admin4921/stats', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);
@@ -166,7 +168,7 @@ export const AdminDashboard = () => {
   const updateUserSubscription = async (userId: number, tier: string, status: string) => {
     const token = localStorage.getItem('admin_token');
     try {
-      const response = await fetch(`http://localhost:3001/api/admin4921/users/${userId}/subscription`, {
+      const response = await fetch(`${API_URL}/api/admin4921/users/${userId}/subscription`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -188,7 +190,7 @@ export const AdminDashboard = () => {
     
     const token = localStorage.getItem('admin_token');
     try {
-      const response = await fetch(`http://localhost:3001/api/admin4921/users/${userId}`, {
+      const response = await fetch(`${API_URL}/api/admin4921/users/${userId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -204,7 +206,7 @@ export const AdminDashboard = () => {
   const updatePostStatus = async (postId: number, updates: { is_trending?: boolean, is_popular?: boolean, boost_score?: number }) => {
     const token = localStorage.getItem('admin_token');
     try {
-      const response = await fetch(`http://localhost:3001/api/admin4921/community/posts/${postId}`, {
+      const response = await fetch(`${API_URL}/api/admin4921/community/posts/${postId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -226,7 +228,7 @@ export const AdminDashboard = () => {
     
     const token = localStorage.getItem('admin_token');
     try {
-      const response = await fetch(`http://localhost:3001/api/admin4921/community/posts/${postId}`, {
+      const response = await fetch(`${API_URL}/api/admin4921/community/posts/${postId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

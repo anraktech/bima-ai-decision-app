@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppState } from '../hooks/useAppState';
 import { 
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
   MessageSquare, 
   Send, 
   Users, 
@@ -74,7 +76,7 @@ export function MultiplayerConversation() {
   }, []);
   
   const connectWebSocket = (pin: string) => {
-    const ws = new WebSocket('ws://localhost:3001/ws');
+    const ws = new WebSocket('${getWsUrl()}/ws');
     
     ws.onopen = () => {
       setIsConnected(true);

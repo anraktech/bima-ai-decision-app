@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { Save, Upload, X, FileText, Sparkles, Bot, Database } from 'lucide-react';
 import { BaseModelDropdown } from '../components/BaseModelDropdown';
 import type { AIModel } from '../types';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 
 interface UploadedDocument {
   id?: number;
@@ -91,7 +93,7 @@ export const CreateModel = () => {
 
     try {
       // Create the model first
-      const modelResponse = await fetch('http://localhost:3001/api/models', {
+      const modelResponse = await fetch('${API_URL}/api/models', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -120,7 +122,7 @@ export const CreateModel = () => {
           }
         });
 
-        await fetch(`http://localhost:3001/api/models/${model.id}/documents`, {
+        await fetch(`${API_URL}/api/models/${model.id}/documents`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`

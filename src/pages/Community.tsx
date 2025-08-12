@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { MessageSquare, Star, Trophy, Eye, Copy, Check, Plus, Hash, ArrowLeft, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 
 interface CommunityPost {
   id: string;
@@ -40,7 +42,7 @@ export function Community() {
     const loadPosts = async () => {
       try {
         // No authentication needed for viewing posts (public forum)
-        const response = await fetch('http://localhost:3001/api/community/posts');
+        const response = await fetch('${API_URL}/api/community/posts');
         
         if (response.ok) {
           const data = await response.json();
@@ -74,7 +76,7 @@ export function Community() {
 
     try {
       const isLiked = likedPosts.has(postId);
-      const response = await fetch(`http://localhost:3001/api/community/posts/${postId}/like`, {
+      const response = await fetch(`${API_URL}/api/community/posts/${postId}/like`, {
         method: isLiked ? 'DELETE' : 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -129,7 +131,7 @@ export function Community() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/community/posts', {
+      const response = await fetch('${API_URL}/api/community/posts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

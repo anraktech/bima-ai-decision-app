@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Message } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 
 interface UseLiveSessionProps {
   conversationId?: string;
@@ -27,7 +29,7 @@ export const useLiveSession = ({ conversationId, isHost = false, predefinedToken
   const startLiveSession = useCallback(() => {
     if (!conversationId || !user || !isHost) return;
 
-    const ws = new WebSocket('ws://localhost:3001/ws');
+    const ws = new WebSocket('${getWsUrl()}/ws');
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -74,7 +76,7 @@ export const useLiveSession = ({ conversationId, isHost = false, predefinedToken
 
   // Join a live session (viewer only)
   const joinLiveSession = useCallback((code: string) => {
-    const ws = new WebSocket('ws://localhost:3001/ws');
+    const ws = new WebSocket('${getWsUrl()}/ws');
     wsRef.current = ws;
 
     ws.onopen = () => {

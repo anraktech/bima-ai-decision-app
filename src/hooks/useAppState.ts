@@ -5,6 +5,8 @@ import { generateAnthropicResponse, ANTHROPIC_MODELS } from '../services/anthrop
 import { generateGoogleResponse, GOOGLE_MODELS } from '../services/google';
 import { generateGroqResponse, GROQ_MODELS } from '../services/groq';
 import { generateXAIResponse, XAI_MODELS } from '../services/xai';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 // Perplexity removed - models not working properly
 import { generateDeepseekResponse } from '../services/deepseek';
 import { useAuth } from '../contexts/AuthContext';
@@ -124,7 +126,7 @@ export const useAppState = () => {
       // Track conversation start in backend
       const token = localStorage.getItem('token');
       if (token) {
-        fetch('http://localhost:3001/api/conversations', {
+        fetch('${API_URL}/api/conversations', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -325,7 +327,7 @@ export const useAppState = () => {
           console.log('Token usage for', activePanel.model?.id, ':', tokenUsage);
           const authToken = localStorage.getItem('token');
           if (authToken) {
-            fetch('http://localhost:3001/api/usage/track', {
+            fetch('${API_URL}/api/usage/track', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

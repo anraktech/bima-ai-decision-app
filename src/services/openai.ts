@@ -73,7 +73,7 @@ const fetchKnowledgeBase = async (customModelId: string, token?: string) => {
   
   try {
     const modelDbId = customModelId.replace('custom-', '');
-    const response = await fetch(`http://localhost:3001/api/models/${modelDbId}/documents/content`, {
+    const response = await fetch(`${API_URL}/api/models/${modelDbId}/documents/content`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }

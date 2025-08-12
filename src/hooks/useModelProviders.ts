@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { AIModel, ModelProvider } from '../types';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 
 export const useModelProviders = () => {
   const [providers, setProviders] = useState<ModelProvider[]>([]);
@@ -11,7 +13,7 @@ export const useModelProviders = () => {
     const fetchProviders = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:3001/api/models/providers');
+        const response = await fetch('${API_URL}/api/models/providers');
         
         if (response.ok) {
           const data = await response.json();

@@ -218,11 +218,26 @@ app.use(cors({
     if (!origin) return callback(null, true);
     
     // Allow any localhost port for development
-    if (origin.startsWith('http://localhost:')) {
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return callback(null, true);
+    }
+    
+    // Allow Vercel deployments
+    if (origin.includes('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // Allow specific production domain if you have one
+    const allowedDomains = [
+      'https://bima-ai.com', // Your custom domain if you set one
+    ];
+    
+    if (allowedDomains.includes(origin)) {
       return callback(null, true);
     }
     
     // Otherwise reject
+    console.log('CORS blocked origin:', origin);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true

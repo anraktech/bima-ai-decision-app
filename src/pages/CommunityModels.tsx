@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Globe, Bot, FileText, Calendar, Users, Download, Search, Star, TrendingUp } from 'lucide-react';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 
 interface CommunityModel {
   id: number;
@@ -31,7 +33,7 @@ export const CommunityModels = () => {
 
   const fetchCommunityModels = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/models/community', {
+      const response = await fetch('${API_URL}/api/models/community', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -51,7 +53,7 @@ export const CommunityModels = () => {
   const importModel = async (shareToken: string) => {
     setImportingModel(shareToken);
     try {
-      const response = await fetch('http://localhost:3001/api/models/import', {
+      const response = await fetch('${API_URL}/api/models/import', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

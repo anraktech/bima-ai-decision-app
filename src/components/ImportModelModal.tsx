@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { X, Download, Key, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
+
 
 interface ImportModelModalProps {
   isOpen: boolean;
@@ -24,7 +26,7 @@ export function ImportModelModal({ isOpen, onClose, onImport }: ImportModelModal
     setError('');
 
     try {
-      const response = await fetch('http://localhost:3001/api/models/import', {
+      const response = await fetch('${API_URL}/api/models/import', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
