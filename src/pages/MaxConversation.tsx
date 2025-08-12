@@ -247,7 +247,6 @@ export function MaxConversation() {
         timestamp: new Date(),
         color: currentModel.color,
         bgColor: currentModel.bgColor,
-        borderColor: currentModel.borderColor,
         icon: '⚠️'
       };
       
@@ -454,7 +453,7 @@ export function MaxConversation() {
                 </div>
               ) : (
                 <div className="flex space-x-3 max-w-4xl w-full">
-                  <div className={`w-10 h-10 rounded-lg ${message.bgColor} flex items-center justify-center flex-shrink-0 shadow-sm border ${message.borderColor || 'border-gray-200'}`}>
+                  <div className={`w-10 h-10 rounded-lg ${message.bgColor} flex items-center justify-center flex-shrink-0 shadow-sm border border-gray-200`}>
                     <span className="text-lg">{message.icon}</span>
                   </div>
                   <div className="flex-1">
