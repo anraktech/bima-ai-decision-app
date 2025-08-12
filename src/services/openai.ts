@@ -1,8 +1,10 @@
 import OpenAI from 'openai';
 import { API_URL } from '../config/api';
 
+// Initialize OpenAI client only if API key is available
+const openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY || 'dummy-key-for-backend-only';
 const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+  apiKey: openaiApiKey,
   dangerouslyAllowBrowser: true // Only for demo purposes - in production, use a backend
 });
 
