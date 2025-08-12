@@ -185,7 +185,7 @@ export function MultiplayerConversation() {
     // Add locally
     setMessages(prev => [...prev, {
       ...interventionMessage,
-      authorId: user?.id,
+      authorId: user?.id?.toString(),
       authorName: user?.name,
       authorRole: isHost ? 'Host' : 'Participant'
     }]);
