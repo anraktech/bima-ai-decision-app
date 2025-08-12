@@ -230,6 +230,12 @@ app.use(cors({
 app.use(express.json());
 app.use('/uploads', express.static(uploadsDir));
 
+// Serve static files from dist directory
+const distPath = join(__dirname, '../dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+}
+
 // Billing routes
 app.use('/api/billing', billingRouter);
 
@@ -2794,6 +2800,16 @@ app.get('/api/admin4921/stats', authenticateAdmin, (req, res) => {
   } catch (error) {
     console.error('Error fetching stats:', error);
     res.status(500).json({ error: 'Failed to fetch statistics' });
+  }
+});
+
+// Catch-all route to serve React app for client-side routing
+app.get('*', (req, res) => {
+  const indexPath = join(__dirname, '../dist/index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('Frontend not built. Run: npx vite build');
   }
 });
 

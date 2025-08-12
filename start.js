@@ -15,7 +15,7 @@ console.log('🚀 Starting BIMA AI Decision App on Replit...');
 const distPath = path.join(__dirname, 'dist');
 if (!fs.existsSync(distPath)) {
   console.log('📦 Building production version...');
-  const build = spawn('npm', ['run', 'build'], { stdio: 'inherit' });
+  const build = spawn('npx', ['vite', 'build'], { stdio: 'inherit' });
   
   build.on('close', (code) => {
     if (code === 0) {
