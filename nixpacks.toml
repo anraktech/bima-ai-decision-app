@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ['nodejs_18', 'python3', 'pkg-config', 'libtool', 'autoconf', 'automake']
+nixPkgs = ['nodejs_18', 'python39', 'pkg-config', 'libtool', 'autoconf', 'automake', 'gnumake', 'gcc']
 
 [phases.install]
 cmds = ['npm install --verbose']
