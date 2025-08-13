@@ -12,6 +12,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
 import multer from 'multer';
+import mammoth from 'mammoth';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -240,17 +241,38 @@ const upload = multer({
   }
 });
 
-// Simple text extraction function (basic implementation)
+// Advanced text extraction function for PDF, DOCX, and RTF files
 const extractText = async (buffer, filename) => {
   const extension = filename.split('.').pop()?.toLowerCase();
   
-  if (extension === 'txt') {
-    return buffer.toString('utf-8');
+  try {
+    switch (extension) {
+      case 'pdf':
+        const pdfParse = (await import('pdf-parse')).default;
+        const pdfData = await pdfParse(buffer);
+        return pdfData.text;
+        
+      case 'docx':
+        const docxResult = await mammoth.extractRawText({ buffer });
+        return docxResult.value;
+        
+      case 'rtf':
+        // Basic RTF processing - extract text content
+        const rtfText = buffer.toString('utf-8');
+        // Simple RTF text extraction (remove RTF formatting codes)
+        const cleanText = rtfText.replace(/\\[a-z0-9]+\s?/gi, '').replace(/[{}]/g, '').trim();
+        return cleanText || `RTF document: ${filename}`;
+        
+      case 'txt':
+        return buffer.toString('utf-8');
+        
+      default:
+        throw new Error(`Unsupported file type: ${extension}. Only PDF, DOCX, RTF, and TXT files are supported.`);
+    }
+  } catch (error) {
+    console.error(`Error extracting text from ${filename}:`, error);
+    throw new Error(`Failed to process ${filename}: ${error.message}`);
   }
-  
-  // For PDF, DOCX, RTF - return filename as placeholder
-  // In production, you'd use libraries like pdf-parse, mammoth, etc.
-  return `Content from ${filename}\n\n[Document processing not fully implemented yet. This is a placeholder for the document content.]`;
 };
 
 // Auth middleware
@@ -458,11 +480,46 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
   }
 });
 
-// Models endpoints
+// Models endpoints - Enhanced to include document content in system instructions
 app.get('/api/models', authenticateToken, (req, res) => {
   try {
     const models = db.prepare('SELECT * FROM models WHERE user_id = ? ORDER BY created_at DESC').all(req.user.userId);
-    res.json(models);
+    
+    // Enhance each model with document content appended to system instructions
+    const enhancedModels = models.map(model => {
+      try {
+        // Fetch documents for this model
+        const documents = db.prepare(`
+          SELECT content, original_name 
+          FROM documents 
+          WHERE model_id = ? AND user_id = ?
+          ORDER BY created_at ASC
+        `).all(model.id, req.user.userId);
+        
+        let enhancedSystemInstructions = model.system_instructions || model.system_prompt || '';
+        
+        // Append document content if documents exist
+        if (documents.length > 0) {
+          const documentContent = documents.map(doc => {
+            return `\n\n=== KNOWLEDGE BASE DOCUMENT: ${doc.original_name} ===\n${doc.content}\n=== END DOCUMENT ===`;
+          }).join('');
+          
+          enhancedSystemInstructions += `\n\n=== KNOWLEDGE BASE ===\nYou have access to the following documents that contain additional context and information. Reference this knowledge when relevant to the conversation:${documentContent}\n\n=== END KNOWLEDGE BASE ===\n\nPlease use the information from these documents to provide more accurate and detailed responses when relevant.`;
+        }
+        
+        return {
+          ...model,
+          system_instructions: enhancedSystemInstructions,
+          system_prompt: enhancedSystemInstructions, // Support both field names
+          document_count: documents.length
+        };
+      } catch (docError) {
+        console.error(`Error fetching documents for model ${model.id}:`, docError);
+        return model; // Return original model if document fetching fails
+      }
+    });
+    
+    res.json(enhancedModels);
   } catch (error) {
     console.error('Error fetching models:', error);
     res.status(500).json({ error: 'Failed to fetch models' });
@@ -618,19 +675,43 @@ app.get('/api/models/:id', authenticateToken, (req, res) => {
       return res.status(404).json({ error: 'Model not found' });
     }
     
-    // Also get document count for this model
-    const docCount = db.prepare('SELECT COUNT(*) as count FROM documents WHERE model_id = ?').get(id);
-    model.document_count = docCount.count;
+    // Fetch documents for this model to include in system instructions
+    const documents = db.prepare(`
+      SELECT id, original_name, file_type, file_size, content, created_at
+      FROM documents 
+      WHERE model_id = ? AND user_id = ?
+      ORDER BY created_at ASC
+    `).all(id, req.user.userId);
     
-    // Normalize field names for frontend compatibility
+    let enhancedSystemInstructions = model.system_instructions || model.system_prompt || '';
+    
+    // Append document content if documents exist  
+    if (documents.length > 0) {
+      const documentContent = documents.map(doc => {
+        return `\n\n=== KNOWLEDGE BASE DOCUMENT: ${doc.original_name} ===\n${doc.content}\n=== END DOCUMENT ===`;
+      }).join('');
+      
+      enhancedSystemInstructions += `\n\n=== KNOWLEDGE BASE ===\nYou have access to the following documents that contain additional context and information. Reference this knowledge when relevant to the conversation:${documentContent}\n\n=== END KNOWLEDGE BASE ===\n\nPlease use the information from these documents to provide more accurate and detailed responses when relevant.`;
+    }
+    
+    // Normalize field names for frontend compatibility and include enhanced system instructions
     const responseModel = {
       ...model,
-      system_instructions: model.system_prompt,
+      system_instructions: enhancedSystemInstructions,
+      system_prompt: enhancedSystemInstructions,
       opening_statement: model.greeting_message,
-      documents: [] // Documents will be fetched separately by the documents endpoint
+      document_count: documents.length,
+      documents: documents.map(doc => ({
+        id: doc.id,
+        name: doc.original_name,
+        original_name: doc.original_name,
+        file_type: doc.file_type,
+        size: doc.file_size,
+        created_at: doc.created_at
+      }))
     };
     
-    console.log('✅ Model found:', model.name, 'with', docCount.count, 'documents');
+    console.log('✅ Model found:', model.name, 'with', documents.length, 'documents');
     res.json(responseModel);
   } catch (error) {
     console.error('Error fetching model:', error);
@@ -733,10 +814,42 @@ app.post('/api/models/:modelId/documents', authenticateToken, upload.array('docu
       return res.status(400).json({ error: 'No files uploaded' });
     }
     
+    // Strict file type validation - ONLY PDF, DOCX, and RTF allowed
+    const allowedMimeTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+      'application/rtf',
+      'text/rtf'
+    ];
+    
+    const allowedExtensions = ['pdf', 'docx', 'rtf'];
+    
+    for (const file of files) {
+      const extension = file.originalname.toLowerCase().split('.').pop();
+      const isValidMimeType = allowedMimeTypes.includes(file.mimetype);
+      const isValidExtension = allowedExtensions.includes(extension);
+      
+      if (!isValidMimeType && !isValidExtension) {
+        return res.status(400).json({ 
+          error: `Invalid file type: ${file.originalname}. Only PDF, DOCX, and RTF files are allowed.`,
+          accepted_types: 'PDF (.pdf), Microsoft Word (.docx), Rich Text Format (.rtf)'
+        });
+      }
+      
+      // Additional size check (10MB limit per file)
+      if (file.size > 10 * 1024 * 1024) {
+        return res.status(400).json({ 
+          error: `File too large: ${file.originalname}. Maximum file size is 10MB.`
+        });
+      }
+    }
+    
     const results = [];
     
     for (const file of files) {
       try {
+        console.log(`📄 Processing ${file.originalname} (${file.mimetype}, ${file.size} bytes)`);
+        
         // Extract text content from the file
         const content = await extractText(file.buffer, file.originalname);
         
