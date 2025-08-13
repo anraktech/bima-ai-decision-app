@@ -359,6 +359,7 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
     const isOpenRouterModel = provider === 'openrouter' || model.includes('/');
     if (isOpenRouterModel && openrouter) {
       console.log('Routing to OpenRouter for model:', model);
+      console.log('OpenRouter API configured:', !!openrouter);
       try {
         const openrouterResponse = await openrouter.chat.completions.create({
           model: model, // Model IDs like 'openai/gpt-4o', 'microsoft/phi-4-multimodal-instruct', etc.
@@ -691,7 +692,7 @@ app.get('/api/models/providers', async (req, res) => {
           // Meta Models
           { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick (Latest)', provider: 'openrouter', requiresKey: true, context: 1048576 },
           { id: 'meta-llama/llama-4-scout', name: 'Llama 4 Scout', provider: 'openrouter', requiresKey: true, context: 1048576 },
-          { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', provider: 'openrouter', requiresKey: true, context: 65536 },
+          { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B', provider: 'openrouter', requiresKey: true, context: 131072 },
           
           // Mistral Models
           { id: 'mistralai/mistral-large-2411', name: 'Mistral Large 2411', provider: 'openrouter', requiresKey: true, context: 131072 },
@@ -704,7 +705,7 @@ app.get('/api/models/providers', async (req, res) => {
           // Other Premium Models
           { id: 'microsoft/phi-4-reasoning-plus', name: 'Microsoft Phi 4 Reasoning+', provider: 'openrouter', requiresKey: true, context: 32768 },
           { id: 'microsoft/phi-4-multimodal-instruct', name: 'Microsoft Phi 4 Multimodal', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'qwen/qwen-2.5-72b-instruct:free', name: 'Qwen 2.5 72B (Free)', provider: 'openrouter', requiresKey: true, context: 32768 },
+          { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B', provider: 'openrouter', requiresKey: true, context: 131072 },
           { id: 'qwen/qwen-turbo', name: 'Qwen Turbo', provider: 'openrouter', requiresKey: true, context: 1000000 },
           { id: 'cohere/command-r-plus-08-2024', name: 'Cohere Command R+', provider: 'openrouter', requiresKey: true, context: 128000 },
           { id: 'deepseek/deepseek-r1-0528', name: 'DeepSeek R1 (Latest)', provider: 'openrouter', requiresKey: true, context: 163840 }

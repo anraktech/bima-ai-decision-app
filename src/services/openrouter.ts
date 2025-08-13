@@ -64,15 +64,24 @@ export async function generateOpenRouterResponse(
       error: 'Failed to generate response' 
     }));
     
-    if (error.details?.includes('model') || error.details?.includes('not available')) {
-      throw new Error(`OpenRouter model error: ${error.details || 'Model not available'}`);
-    } else if (error.details?.includes('key') || error.details?.includes('API')) {
-      throw new Error('OpenRouter API key error: Please check your API key configuration');
-    } else if (error.details?.includes('rate limit') || error.details?.includes('quota')) {
-      throw new Error('OpenRouter rate limit exceeded. Please try again later.');
+    // Handle specific OpenRouter errors
+    if (response.status === 429) {
+      // Extract wait time if available
+      const errorMsg = error.error || error.message || '';
+      if (errorMsg.includes('limited to 1 request')) {
+        throw new Error('⏳ Free model rate limit: This free model is limited to 1 request per minute. Please wait 60 seconds or try a paid model.');
+      }
+      throw new Error('Rate limit exceeded. Please try again in a moment.');
+    } else if (response.status === 400) {
+      if (error.error?.includes('model_not_found') || error.error?.includes('not available')) {
+        throw new Error(`Model temporarily unavailable. Try another model or check back later.`);
+      }
+      throw new Error(error.error || 'Invalid request. Please try a different model.');
+    } else if (response.status === 401) {
+      throw new Error('API authentication error. Please check your configuration.');
     }
     
-    throw new Error(error.details || error.error || 'Failed to generate response from OpenRouter');
+    throw new Error(error.error || error.message || 'Failed to generate response');
   }
 
   const data = await response.json();
