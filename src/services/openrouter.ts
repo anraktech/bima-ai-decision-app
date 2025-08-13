@@ -12,7 +12,7 @@ interface OpenRouterResponse {
 export async function generateOpenRouterResponse(
   modelId: string,
   systemInstructions?: string,
-  conversationHistory?: { role: string; content: string }[],
+  conversationHistory?: { content: string; sender: string }[],
   baseModel?: string,
   userInput?: string,
   token?: string
@@ -30,7 +30,7 @@ export async function generateOpenRouterResponse(
       content: systemInstructions 
     }] : []),
     ...(conversationHistory || []).map(msg => ({
-      role: msg.role,
+      role: msg.sender === 'user' ? 'user' : 'assistant',
       content: msg.content
     })),
     ...(userInput ? [{ role: 'user', content: userInput }] : [])
