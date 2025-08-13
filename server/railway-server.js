@@ -415,9 +415,7 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
           });
         }
       }
-    }
-    
-    if (model.includes('gpt') && openai) {
+    } else if (model.includes('gpt') && openai) {
       // OpenAI API call
       try {
         const completion = await openai.chat.completions.create({
