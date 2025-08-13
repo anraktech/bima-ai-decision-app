@@ -680,47 +680,22 @@ app.get('/api/models/providers', async (req, res) => {
         id: 'openrouter',
         name: 'OpenRouter',
         models: [
-          // OpenAI Models (VERIFIED WORKING)
-          { id: 'openai/gpt-4o', name: 'GPT-4o (Latest)', provider: 'openrouter', requiresKey: true, context: 128000 },
-          { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openrouter', requiresKey: true, context: 128000 },
-          { id: 'openai/o1-pro', name: 'OpenAI o1 Pro (Reasoning)', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'openai/o1', name: 'OpenAI o1 (Reasoning)', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'openai/o1-mini', name: 'OpenAI o1 Mini (Reasoning)', provider: 'openrouter', requiresKey: true, context: 128000 },
-          { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openrouter', requiresKey: true, context: 128000 },
-          
-          // Anthropic Models (VERIFIED WORKING)
-          { id: 'anthropic/claude-3.5-sonnet-20241022', name: 'Claude 3.5 Sonnet (Latest)', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'anthropic/claude-3.5-haiku-20241022', name: 'Claude 3.5 Haiku', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'anthropic/claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'anthropic/claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', provider: 'openrouter', requiresKey: true, context: 200000 },
-          
-          // Google Models (VERIFIED WORKING)
-          { id: 'google/gemini-pro-1.5', name: 'Gemini 1.5 Pro (Latest)', provider: 'openrouter', requiresKey: true, context: 2000000 },
-          { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash', provider: 'openrouter', requiresKey: true, context: 1048576 },
-          { id: 'google/gemini-flash-1.5-8b', name: 'Gemini 1.5 Flash 8B', provider: 'openrouter', requiresKey: true, context: 1048576 },
-          
-          // Meta Models (VERIFIED WORKING)
-          { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B Instruct (Largest)', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B Instruct', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'meta-llama/llama-3.2-90b-vision-instruct', name: 'Llama 3.2 90B Vision', provider: 'openrouter', requiresKey: true, context: 131072 },
-          
-          // Mistral Models (CORRECTED IDs)
+          // MISTRAL MODELS (OPENROUTER EXCLUSIVE)
           { id: 'mistralai/mistral-large-2411', name: 'Mistral Large 2411', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'mistralai/codestral-2508', name: 'Codestral 2508 (Latest)', provider: 'openrouter', requiresKey: true, context: 32768 },
-          { id: 'mistralai/pixtral-large-2411', name: 'Pixtral Large Vision', provider: 'openrouter', requiresKey: true, context: 128000 },
-          { id: 'mistralai/pixtral-12b', name: 'Pixtral 12B Vision', provider: 'openrouter', requiresKey: true, context: 128000 },
+          { id: 'mistralai/codestral-2508', name: 'Codestral 2508 (Code)', provider: 'openrouter', requiresKey: true, context: 32768 },
+          { id: 'mistralai/pixtral-large-2411', name: 'Pixtral Large (Vision)', provider: 'openrouter', requiresKey: true, context: 128000 },
+          { id: 'mistralai/pixtral-12b', name: 'Pixtral 12B (Vision)', provider: 'openrouter', requiresKey: true, context: 128000 },
           
-          // xAI Models (VERIFIED WORKING)
-          { id: 'x-ai/grok-2-1212', name: 'Grok 2 (Latest)', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'x-ai/grok-2-vision-1212', name: 'Grok 2 Vision', provider: 'openrouter', requiresKey: true, context: 131072 },
-          
-          // DeepSeek Models (VERIFIED WORKING)
-          { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat (Latest)', provider: 'openrouter', requiresKey: true, context: 64000 },
-          { id: 'deepseek/deepseek-coder', name: 'DeepSeek Coder', provider: 'openrouter', requiresKey: true, context: 16384 },
-          
-          // Other Premium Models (VERIFIED WORKING)
+          // QWEN MODELS (OPENROUTER EXCLUSIVE)  
           { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B Instruct', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'cohere/command-r-plus-08-2024', name: 'Cohere Command R+', provider: 'openrouter', requiresKey: true, context: 128000 }
+          { id: 'qwen/qwen-turbo', name: 'Qwen Turbo', provider: 'openrouter', requiresKey: true, context: 1000000 },
+          
+          // COHERE MODELS (OPENROUTER EXCLUSIVE)
+          { id: 'cohere/command-r-plus-08-2024', name: 'Cohere Command R+', provider: 'openrouter', requiresKey: true, context: 128000 },
+          
+          // META MODELS (LARGER SIZES NOT AVAILABLE ELSEWHERE)
+          { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B (Largest)', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'meta-llama/llama-3.2-90b-vision-instruct', name: 'Llama 3.2 90B Vision', provider: 'openrouter', requiresKey: true, context: 131072 }
         ]
       });
     }
@@ -733,6 +708,9 @@ app.get('/api/models/providers', async (req, res) => {
         models: [
           { id: 'gpt-4o', name: 'GPT-4o (Latest)', provider: 'openai', requiresKey: true, context: 128000 },
           { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', requiresKey: true, context: 128000 },
+          { id: 'o1-pro', name: 'OpenAI o1 Pro (Reasoning)', provider: 'openai', requiresKey: true, context: 200000 },
+          { id: 'o1', name: 'OpenAI o1 (Reasoning)', provider: 'openai', requiresKey: true, context: 200000 },
+          { id: 'o1-mini', name: 'OpenAI o1 Mini (Reasoning)', provider: 'openai', requiresKey: true, context: 128000 },
           { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openai', requiresKey: true, context: 128000 },
           { id: 'gpt-4', name: 'GPT-4', provider: 'openai', requiresKey: true, context: 8192 },
           { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai', requiresKey: true, context: 16385 }
