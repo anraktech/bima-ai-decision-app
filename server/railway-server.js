@@ -630,6 +630,17 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
         });
       }
     } else {
+      console.log('❌ NO PROVIDER MATCHED:');
+      console.log('   - provider:', provider);
+      console.log('   - model:', model);
+      console.log('   - isOpenRouterModel:', isOpenRouterModel);
+      console.log('   - openrouter exists:', !!openrouter);
+      console.log('   - model.includes("gpt"):', model.includes('gpt'));
+      console.log('   - model.includes("claude"):', model.includes('claude'));
+      console.log('   - model.includes("gemini"):', model.includes('gemini'));
+      console.log('   - model.includes("llama") || model.includes("gemma"):', model.includes('llama') || model.includes('gemma'));
+      console.log('   - model.includes("grok"):', model.includes('grok'));
+      console.log('   - model.includes("deepseek"):', model.includes('deepseek'));
       return res.status(400).json({ error: 'Model not supported or API key not configured' });
     }
     
