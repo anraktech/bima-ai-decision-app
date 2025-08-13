@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { API_URL } from '../config/api';
+import { API_URL, getApiUrl, getWsUrl } from '../config/api';
 import { generateOpenAIResponse, OPENAI_MODELS } from '../services/openai';
 import { generateAnthropicResponse, ANTHROPIC_MODELS } from '../services/anthropic';
 import { generateGoogleResponse, GOOGLE_MODELS } from '../services/google';
 import { generateGroqResponse, GROQ_MODELS } from '../services/groq';
 import { generateXAIResponse, XAI_MODELS } from '../services/xai';
-import { API_URL, getApiUrl, getWsUrl } from '../config/api';
 
 // Perplexity removed - models not working properly
 import { generateDeepseekResponse } from '../services/deepseek';
