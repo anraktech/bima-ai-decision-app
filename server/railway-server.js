@@ -254,6 +254,7 @@ app.get('/api/models/providers', async (req, res) => {
   try {
     const providers = [
       {
+        id: 'openai',
         name: 'OpenAI',
         models: [
           { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', requiresKey: true },
@@ -263,6 +264,7 @@ app.get('/api/models/providers', async (req, res) => {
         ]
       },
       {
+        id: 'anthropic',
         name: 'Anthropic',
         models: [
           { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic', requiresKey: true },
@@ -271,6 +273,7 @@ app.get('/api/models/providers', async (req, res) => {
         ]
       },
       {
+        id: 'google',
         name: 'Google',
         models: [
           { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'google', requiresKey: true },
@@ -292,7 +295,10 @@ app.get('/api/models/providers', async (req, res) => {
       return false;
     });
 
-    res.json(availableProviders);
+    res.json({ 
+      success: true, 
+      providers: availableProviders 
+    });
   } catch (error) {
     console.error('Error fetching providers:', error);
     res.status(500).json({ error: 'Failed to fetch providers' });
