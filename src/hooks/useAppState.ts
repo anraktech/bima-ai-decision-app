@@ -248,7 +248,10 @@ export const useAppState = () => {
         if (activePanel.model?.isCustom && activePanel.model?.baseModel) {
           // For custom models, use the base model's provider
           const baseModelId = activePanel.model.baseModel;
+          console.log('🔍 Custom model base:', baseModelId);
+          
           if (OPENAI_MODELS.some(m => m.id === baseModelId)) {
+            console.log('📍 Using OpenAI for custom model');
             const apiResponse = await generateOpenAIResponse(
               activePanel.model.id,
               activePanel.systemInstructions,
@@ -258,8 +261,70 @@ export const useAppState = () => {
             );
             responseContent = apiResponse.content;
             tokenUsage = apiResponse.usage;
+          } else if (ANTHROPIC_MODELS.some(m => m.id === baseModelId) || baseModelId.includes('claude') || baseModelId.includes('anthropic/')) {
+            console.log('📍 Using Anthropic for custom model');
+            const apiResponse = await generateAnthropicResponse(
+              baseModelId,
+              activePanel.systemInstructions,
+              messageHistory
+            );
+            responseContent = apiResponse.content;
+            tokenUsage = apiResponse.usage;
+          } else if (GOOGLE_MODELS.some(m => m.id === baseModelId) || baseModelId.includes('gemini') || baseModelId.includes('google/')) {
+            console.log('📍 Using Google for custom model');
+            const apiResponse = await generateGoogleResponse(
+              baseModelId,
+              activePanel.systemInstructions,
+              messageHistory
+            );
+            responseContent = apiResponse.content;
+            tokenUsage = apiResponse.usage;
+          } else if (GROQ_MODELS.some(m => m.id === baseModelId) || baseModelId.includes('groq/') || baseModelId.includes('llama') || baseModelId.includes('gemma')) {
+            console.log('📍 Using Groq for custom model');
+            const apiResponse = await generateGroqResponse(
+              baseModelId,
+              activePanel.systemInstructions,
+              messageHistory
+            );
+            responseContent = apiResponse.content;
+            tokenUsage = apiResponse.usage;
+          } else if (XAI_MODELS.some(m => m.id === baseModelId) || baseModelId.includes('grok') || baseModelId.includes('x-ai/')) {
+            console.log('📍 Using xAI for custom model');
+            const apiResponse = await generateXAIResponse(
+              baseModelId,
+              activePanel.systemInstructions,
+              messageHistory
+            );
+            responseContent = apiResponse.content;
+            tokenUsage = apiResponse.usage;
+          } else if (baseModelId.includes('deepseek')) {
+            console.log('📍 Using Deepseek for custom model');
+            const apiResponse = await generateDeepseekResponse(
+              baseModelId,
+              activePanel.systemInstructions,
+              messageHistory
+            );
+            responseContent = apiResponse.content;
+            tokenUsage = apiResponse.tokenUsage ? {
+              prompt_tokens: apiResponse.tokenUsage.promptTokens,
+              completion_tokens: apiResponse.tokenUsage.completionTokens,
+              total_tokens: apiResponse.tokenUsage.totalTokens
+            } : undefined;
+          } else if (baseModelId.includes('/') || baseModelId.includes('openai/') || baseModelId.includes('anthropic/') || baseModelId.includes('google/') || baseModelId.includes('x-ai/')) {
+            console.log('📍 Using OpenRouter for custom model');
+            const apiResponse = await generateOpenRouterResponse(
+              baseModelId,
+              activePanel.systemInstructions,
+              messageHistory,
+              undefined,
+              undefined,
+              token || undefined
+            );
+            responseContent = apiResponse.content;
+            tokenUsage = apiResponse.usage;
           } else {
-            responseContent = `[${activePanel.model?.displayName || 'AI Model'}]: Custom model with unsupported base model.`;
+            console.log('❌ Unsupported base model:', baseModelId);
+            responseContent = `[${activePanel.model?.displayName || 'AI Model'}]: Custom model with unsupported base model: ${baseModelId}`;
           }
         } else if (provider === 'anthropic') {
           const apiResponse = await generateAnthropicResponse(
