@@ -348,10 +348,56 @@ app.post('/api/conversations', authenticateToken, (req, res) => {
 // Chat completions endpoint - REAL API implementation
 app.post('/api/chat/completions', authenticateToken, async (req, res) => {
   try {
-    const { model, messages, temperature = 0.7, max_tokens = 1000 } = req.body;
+    const { model, messages, temperature = 0.7, max_tokens = 1000, provider } = req.body;
     
-    // Determine provider from model ID
+    console.log(`Chat request - Model: ${model}, Provider: ${provider}`);
+    
+    // Determine provider from explicit provider field or model ID
     let response;
+    
+    // Handle OpenRouter models first (based on provider field)
+    if (provider === 'openrouter' && openrouter) {
+      console.log('Routing to OpenRouter for model:', model);
+      try {
+        const openrouterResponse = await openrouter.chat.completions.create({
+          model: model, // Model IDs like 'openai/gpt-4o', 'microsoft/phi-4-multimodal-instruct', etc.
+          messages: messages,
+          temperature: temperature,
+          max_tokens: max_tokens,
+        });
+        
+        response = openrouterResponse;
+      } catch (error) {
+        console.error('OpenRouter API error:', error);
+        
+        // Handle specific OpenRouter error types
+        if (error.status === 400) {
+          return res.status(400).json({ 
+            error: 'Invalid model or request. Check model ID format.',
+            details: `The model "${model}" may not be available or the request format is invalid.`,
+            provider: 'OpenRouter'
+          });
+        } else if (error.status === 401) {
+          return res.status(401).json({ 
+            error: 'OpenRouter API key is invalid or expired.',
+            details: error.message || 'Check your OpenRouter API key configuration',
+            provider: 'OpenRouter'
+          });
+        } else if (error.status === 429) {
+          return res.status(429).json({ 
+            error: 'OpenRouter API rate limit exceeded.',
+            details: error.message || 'Too many requests, please try again later',
+            provider: 'OpenRouter'
+          });
+        } else {
+          return res.status(500).json({ 
+            error: 'Failed to generate response from OpenRouter',
+            details: error.message || 'Unknown error',
+            provider: 'OpenRouter'
+          });
+        }
+      }
+    }
     
     if (model.includes('gpt') && openai) {
       // OpenAI API call
@@ -565,47 +611,6 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
           details: error.message || 'Unknown error'
         });
       }
-    } else if (openrouter) {
-      // OpenRouter API call - handles all providers through one API
-      try {
-        const openrouterResponse = await openrouter.chat.completions.create({
-          model: model, // Model IDs like 'openai/gpt-4o', 'anthropic/claude-3-5-sonnet', etc.
-          messages: messages,
-          temperature: temperature,
-          max_tokens: max_tokens,
-        });
-        
-        response = openrouterResponse;
-      } catch (error) {
-        console.error('OpenRouter API error:', error);
-        
-        // Handle specific OpenRouter error types
-        if (error.status === 400) {
-          return res.status(400).json({ 
-            error: 'Invalid model or request. Check model ID format.',
-            details: `The model "${model}" may not be available or the request format is invalid.`,
-            provider: 'OpenRouter'
-          });
-        } else if (error.status === 401) {
-          return res.status(401).json({ 
-            error: 'OpenRouter API key is invalid or expired.',
-            details: error.message || 'Check your OpenRouter API key configuration',
-            provider: 'OpenRouter'
-          });
-        } else if (error.status === 429) {
-          return res.status(429).json({ 
-            error: 'OpenRouter API rate limit exceeded.',
-            details: error.message || 'Too many requests, please try again later',
-            provider: 'OpenRouter'
-          });
-        } else {
-          return res.status(500).json({ 
-            error: 'Failed to generate response from OpenRouter',
-            details: error.message || 'Unknown error',
-            provider: 'OpenRouter'
-          });
-        }
-      }
     } else {
       return res.status(400).json({ error: 'Model not supported or API key not configured' });
     }
@@ -715,86 +720,54 @@ app.get('/api/models/providers', async (req, res) => {
       }
     ];
 
-    // Add OpenRouter providers if key is available
+    // Add OpenRouter as single provider if key is available
     if (process.env.OPENROUTER_API_KEY) {
-      const openrouterProviders = [
-        {
-          id: 'openrouter-openai',
-          name: '🌐 OpenAI (via OpenRouter)',
-          models: [
-            { id: 'openai/gpt-5-chat', name: 'GPT-5 Chat (Latest)', provider: 'openrouter', requiresKey: true, context: 400000 },
-            { id: 'openai/gpt-5-mini', name: 'GPT-5 Mini (Latest)', provider: 'openrouter', requiresKey: true, context: 400000 },
-            { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'openrouter', requiresKey: true, context: 128000 },
-            { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openrouter', requiresKey: true, context: 128000 },
-            { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openrouter', requiresKey: true, context: 128000 }
-          ]
-        },
-        {
-          id: 'openrouter-anthropic',
-          name: '🌐 Anthropic (via OpenRouter)',
-          models: [
-            { id: 'anthropic/claude-opus-4.1', name: 'Claude Opus 4.1 (Latest)', provider: 'openrouter', requiresKey: true, context: 200000 },
-            { id: 'anthropic/claude-opus-4', name: 'Claude Opus 4', provider: 'openrouter', requiresKey: true, context: 200000 },
-            { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'openrouter', requiresKey: true, context: 200000 },
-            { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'openrouter', requiresKey: true, context: 200000 },
-            { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'openrouter', requiresKey: true, context: 200000 },
-            { id: 'anthropic/claude-3.5-haiku', name: 'Claude 3.5 Haiku', provider: 'openrouter', requiresKey: true, context: 200000 }
-          ]
-        },
-        {
-          id: 'openrouter-google',
-          name: '🌐 Google (via OpenRouter)',
-          models: [
-            { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro (Latest)', provider: 'openrouter', requiresKey: true, context: 1048576 },
-            { id: 'google/gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', provider: 'openrouter', requiresKey: true, context: 1048576 },
-            { id: 'google/gemini-pro-1.5', name: 'Gemini 1.5 Pro', provider: 'openrouter', requiresKey: true, context: 2000000 },
-            { id: 'google/gemini-flash-1.5-8b', name: 'Gemini 1.5 Flash 8B', provider: 'openrouter', requiresKey: true, context: 1000000 }
-          ]
-        },
-        {
-          id: 'openrouter-meta',
-          name: '🌐 Meta (via OpenRouter)',
-          models: [
-            { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick (Latest)', provider: 'openrouter', requiresKey: true, context: 1048576 },
-            { id: 'meta-llama/llama-4-scout', name: 'Llama 4 Scout', provider: 'openrouter', requiresKey: true, context: 1048576 },
-            { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', provider: 'openrouter', requiresKey: true, context: 65536 },
-            { id: 'meta-llama/llama-3.1-405b-instruct:free', name: 'Llama 3.1 405B (Free)', provider: 'openrouter', requiresKey: true, context: 65536 }
-          ]
-        },
-        {
-          id: 'openrouter-mistral',
-          name: '🌐 Mistral (via OpenRouter)',
-          models: [
-            { id: 'mistralai/mistral-large-2411', name: 'Mistral Large 2411', provider: 'openrouter', requiresKey: true, context: 131072 },
-            { id: 'mistralai/mistral-medium-3', name: 'Mistral Medium 3', provider: 'openrouter', requiresKey: true, context: 131072 },
-            { id: 'mistralai/codestral-2501', name: 'Codestral 2501 (Latest)', provider: 'openrouter', requiresKey: true, context: 262144 },
-            { id: 'mistralai/mistral-small-3.2-24b-instruct:free', name: 'Mistral Small 3.2 (Free)', provider: 'openrouter', requiresKey: true, context: 131072 }
-          ]
-        },
-        {
-          id: 'openrouter-xai',
-          name: '🌐 xAI (via OpenRouter)',
-          models: [
-            { id: 'x-ai/grok-4', name: 'Grok 4 (Latest)', provider: 'openrouter', requiresKey: true, context: 256000 },
-            { id: 'x-ai/grok-2-1212', name: 'Grok 2', provider: 'openrouter', requiresKey: true, context: 131072 },
-            { id: 'x-ai/grok-2-vision-1212', name: 'Grok 2 Vision', provider: 'openrouter', requiresKey: true, context: 32768 }
-          ]
-        },
-        {
-          id: 'openrouter-others',
-          name: '🌐 Other Providers (via OpenRouter)',
-          models: [
-            { id: 'microsoft/phi-4-reasoning-plus', name: 'Microsoft Phi 4 Reasoning+', provider: 'openrouter', requiresKey: true, context: 32768 },
-            { id: 'microsoft/phi-4-multimodal-instruct', name: 'Microsoft Phi 4 Multimodal', provider: 'openrouter', requiresKey: true, context: 131072 },
-            { id: 'qwen/qwen-2.5-72b-instruct:free', name: 'Qwen 2.5 72B (Free)', provider: 'openrouter', requiresKey: true, context: 32768 },
-            { id: 'qwen/qwen-turbo', name: 'Qwen Turbo', provider: 'openrouter', requiresKey: true, context: 1000000 },
-            { id: 'cohere/command-r-plus-08-2024', name: 'Cohere Command R+', provider: 'openrouter', requiresKey: true, context: 128000 },
-            { id: 'deepseek/deepseek-r1-0528', name: 'DeepSeek R1 (Latest)', provider: 'openrouter', requiresKey: true, context: 163840 }
-          ]
-        }
-      ];
+      const openrouterProvider = {
+        id: 'openrouter',
+        name: '🌐 OpenRouter (300+ Models)',
+        models: [
+          // OpenAI Models
+          { id: 'openai/gpt-5-chat', name: 'GPT-5 Chat (Latest)', provider: 'openrouter', requiresKey: true, context: 400000 },
+          { id: 'openai/gpt-5-mini', name: 'GPT-5 Mini (Latest)', provider: 'openrouter', requiresKey: true, context: 400000 },
+          { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'openrouter', requiresKey: true, context: 128000 },
+          { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openrouter', requiresKey: true, context: 128000 },
+          
+          // Anthropic Models
+          { id: 'anthropic/claude-opus-4.1', name: 'Claude Opus 4.1 (Latest)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-opus-4', name: 'Claude Opus 4', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'openrouter', requiresKey: true, context: 200000 },
+          
+          // Google Models
+          { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro (Latest)', provider: 'openrouter', requiresKey: true, context: 1048576 },
+          { id: 'google/gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', provider: 'openrouter', requiresKey: true, context: 1048576 },
+          { id: 'google/gemini-pro-1.5', name: 'Gemini 1.5 Pro', provider: 'openrouter', requiresKey: true, context: 2000000 },
+          
+          // Meta Models
+          { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick (Latest)', provider: 'openrouter', requiresKey: true, context: 1048576 },
+          { id: 'meta-llama/llama-4-scout', name: 'Llama 4 Scout', provider: 'openrouter', requiresKey: true, context: 1048576 },
+          { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', provider: 'openrouter', requiresKey: true, context: 65536 },
+          
+          // Mistral Models
+          { id: 'mistralai/mistral-large-2411', name: 'Mistral Large 2411', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'mistralai/codestral-2501', name: 'Codestral 2501 (Latest)', provider: 'openrouter', requiresKey: true, context: 262144 },
+          
+          // xAI Models
+          { id: 'x-ai/grok-4', name: 'Grok 4 (Latest)', provider: 'openrouter', requiresKey: true, context: 256000 },
+          { id: 'x-ai/grok-2-1212', name: 'Grok 2', provider: 'openrouter', requiresKey: true, context: 131072 },
+          
+          // Other Premium Models
+          { id: 'microsoft/phi-4-reasoning-plus', name: 'Microsoft Phi 4 Reasoning+', provider: 'openrouter', requiresKey: true, context: 32768 },
+          { id: 'microsoft/phi-4-multimodal-instruct', name: 'Microsoft Phi 4 Multimodal', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'qwen/qwen-2.5-72b-instruct:free', name: 'Qwen 2.5 72B (Free)', provider: 'openrouter', requiresKey: true, context: 32768 },
+          { id: 'qwen/qwen-turbo', name: 'Qwen Turbo', provider: 'openrouter', requiresKey: true, context: 1000000 },
+          { id: 'cohere/command-r-plus-08-2024', name: 'Cohere Command R+', provider: 'openrouter', requiresKey: true, context: 128000 },
+          { id: 'deepseek/deepseek-r1-0528', name: 'DeepSeek R1 (Latest)', provider: 'openrouter', requiresKey: true, context: 163840 }
+        ]
+      };
       
-      providers = providers.concat(openrouterProviders);
+      providers.push(openrouterProvider);
     }
 
     // Check which API keys are available
@@ -814,7 +787,7 @@ app.get('/api/models/providers', async (req, res) => {
       if (provider.name === 'Groq') return hasGroq;
       if (provider.name === 'xAI (Grok)') return hasXAI;
       if (provider.name === 'Deepseek') return hasDeepseek;
-      if (provider.id?.startsWith('openrouter-')) return hasOpenRouter;
+      if (provider.id === 'openrouter') return hasOpenRouter;
       return false;
     });
 
