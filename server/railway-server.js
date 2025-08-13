@@ -295,7 +295,24 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
         response = completion;
       } catch (error) {
         console.error('OpenAI API error:', error);
-        return res.status(500).json({ error: 'Failed to generate response from OpenAI' });
+        
+        // Handle specific OpenAI error types
+        if (error.status === 429) {
+          return res.status(429).json({ 
+            error: 'OpenAI API quota exceeded. Please check your OpenAI billing plan and usage limits.',
+            details: error.error?.message || 'Rate limit exceeded'
+          });
+        } else if (error.status === 401) {
+          return res.status(500).json({ 
+            error: 'OpenAI API key is invalid or expired. Please check your API key configuration.',
+            details: error.error?.message || 'Authentication failed'
+          });
+        } else {
+          return res.status(500).json({ 
+            error: 'Failed to generate response from OpenAI',
+            details: error.error?.message || error.message || 'Unknown error'
+          });
+        }
       }
     } else if (model.includes('claude') && process.env.ANTHROPIC_API_KEY) {
       // Anthropic API call (you'd need to install @anthropic-ai/sdk)
