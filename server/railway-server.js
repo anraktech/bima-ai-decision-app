@@ -168,6 +168,56 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
   }
 });
 
+// Models endpoints
+app.get('/api/models/providers', async (req, res) => {
+  try {
+    const providers = [
+      {
+        name: 'OpenAI',
+        models: [
+          { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', requiresKey: true },
+          { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', requiresKey: true },
+          { id: 'gpt-4', name: 'GPT-4', provider: 'openai', requiresKey: true },
+          { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai', requiresKey: true }
+        ]
+      },
+      {
+        name: 'Anthropic',
+        models: [
+          { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic', requiresKey: true },
+          { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'anthropic', requiresKey: true },
+          { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', provider: 'anthropic', requiresKey: true }
+        ]
+      },
+      {
+        name: 'Google',
+        models: [
+          { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'google', requiresKey: true },
+          { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'google', requiresKey: true }
+        ]
+      }
+    ];
+
+    // Check which API keys are available
+    const hasOpenAI = !!process.env.OPENAI_API_KEY;
+    const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
+    const hasGoogle = !!process.env.GOOGLE_API_KEY;
+
+    // Filter providers based on available keys
+    const availableProviders = providers.filter(provider => {
+      if (provider.name === 'OpenAI') return hasOpenAI;
+      if (provider.name === 'Anthropic') return hasAnthropic;
+      if (provider.name === 'Google') return hasGoogle;
+      return false;
+    });
+
+    res.json(availableProviders);
+  } catch (error) {
+    console.error('Error fetching providers:', error);
+    res.status(500).json({ error: 'Failed to fetch providers' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Railway server running on http://localhost:${PORT}`);
