@@ -685,6 +685,30 @@ app.get('/api/usage/stats', authenticateToken, (req, res) => {
   }
 });
 
+// Track usage endpoint  
+app.post('/api/usage/track', authenticateToken, (req, res) => {
+  try {
+    const { model_id, model_name, prompt_tokens, completion_tokens, total_tokens } = req.body;
+    
+    // Insert usage tracking record
+    db.prepare(
+      'INSERT INTO token_usage (user_id, model_id, model_name, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(
+      req.user.userId,
+      model_id,
+      model_name,
+      prompt_tokens || 0,
+      completion_tokens || 0, 
+      total_tokens || 0
+    );
+    
+    res.json({ success: true, message: 'Usage tracked successfully' });
+  } catch (error) {
+    console.error('Error tracking usage:', error);
+    res.status(500).json({ error: 'Failed to track usage' });
+  }
+});
+
 // Model providers endpoint
 app.get('/api/models/providers', async (req, res) => {
   try {
