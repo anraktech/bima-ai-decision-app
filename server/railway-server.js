@@ -350,13 +350,14 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
   try {
     const { model, messages, temperature = 0.7, max_tokens = 1000, provider } = req.body;
     
-    console.log(`Chat request - Model: ${model}, Provider: ${provider}`);
+    console.log(`Chat request - Model: ${model}, Provider: ${provider}, Full body:`, JSON.stringify({model, provider}, null, 2));
     
     // Determine provider from explicit provider field or model ID
     let response;
     
-    // Handle OpenRouter models first (based on provider field)
-    if (provider === 'openrouter' && openrouter) {
+    // Handle OpenRouter models first (based on provider field or model ID pattern)
+    const isOpenRouterModel = provider === 'openrouter' || model.includes('/');
+    if (isOpenRouterModel && openrouter) {
       console.log('Routing to OpenRouter for model:', model);
       try {
         const openrouterResponse = await openrouter.chat.completions.create({
@@ -661,7 +662,58 @@ app.get('/api/usage/stats', authenticateToken, (req, res) => {
 // Model providers endpoint
 app.get('/api/models/providers', async (req, res) => {
   try {
-    let providers = [
+    let providers = [];
+
+    // Add OpenRouter first if key is available
+    if (process.env.OPENROUTER_API_KEY) {
+      providers.push({
+        id: 'openrouter',
+        name: 'OpenRouter',
+        models: [
+          // OpenAI Models
+          { id: 'openai/gpt-5-chat', name: 'GPT-5 Chat (Latest)', provider: 'openrouter', requiresKey: true, context: 400000 },
+          { id: 'openai/gpt-5-mini', name: 'GPT-5 Mini (Latest)', provider: 'openrouter', requiresKey: true, context: 400000 },
+          { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'openrouter', requiresKey: true, context: 128000 },
+          { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openrouter', requiresKey: true, context: 128000 },
+          
+          // Anthropic Models
+          { id: 'anthropic/claude-opus-4.1', name: 'Claude Opus 4.1 (Latest)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-opus-4', name: 'Claude Opus 4', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'openrouter', requiresKey: true, context: 200000 },
+          
+          // Google Models
+          { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro (Latest)', provider: 'openrouter', requiresKey: true, context: 1048576 },
+          { id: 'google/gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', provider: 'openrouter', requiresKey: true, context: 1048576 },
+          { id: 'google/gemini-pro-1.5', name: 'Gemini 1.5 Pro', provider: 'openrouter', requiresKey: true, context: 2000000 },
+          
+          // Meta Models
+          { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick (Latest)', provider: 'openrouter', requiresKey: true, context: 1048576 },
+          { id: 'meta-llama/llama-4-scout', name: 'Llama 4 Scout', provider: 'openrouter', requiresKey: true, context: 1048576 },
+          { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', provider: 'openrouter', requiresKey: true, context: 65536 },
+          
+          // Mistral Models
+          { id: 'mistralai/mistral-large-2411', name: 'Mistral Large 2411', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'mistralai/codestral-2501', name: 'Codestral 2501 (Latest)', provider: 'openrouter', requiresKey: true, context: 262144 },
+          
+          // xAI Models
+          { id: 'x-ai/grok-4', name: 'Grok 4 (Latest)', provider: 'openrouter', requiresKey: true, context: 256000 },
+          { id: 'x-ai/grok-2-1212', name: 'Grok 2', provider: 'openrouter', requiresKey: true, context: 131072 },
+          
+          // Other Premium Models
+          { id: 'microsoft/phi-4-reasoning-plus', name: 'Microsoft Phi 4 Reasoning+', provider: 'openrouter', requiresKey: true, context: 32768 },
+          { id: 'microsoft/phi-4-multimodal-instruct', name: 'Microsoft Phi 4 Multimodal', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'qwen/qwen-2.5-72b-instruct:free', name: 'Qwen 2.5 72B (Free)', provider: 'openrouter', requiresKey: true, context: 32768 },
+          { id: 'qwen/qwen-turbo', name: 'Qwen Turbo', provider: 'openrouter', requiresKey: true, context: 1000000 },
+          { id: 'cohere/command-r-plus-08-2024', name: 'Cohere Command R+', provider: 'openrouter', requiresKey: true, context: 128000 },
+          { id: 'deepseek/deepseek-r1-0528', name: 'DeepSeek R1 (Latest)', provider: 'openrouter', requiresKey: true, context: 163840 }
+        ]
+      });
+    }
+
+    // Add other providers
+    providers = providers.concat([
       {
         id: 'openai',
         name: 'OpenAI',
@@ -720,55 +772,6 @@ app.get('/api/models/providers', async (req, res) => {
       }
     ];
 
-    // Add OpenRouter as single provider if key is available
-    if (process.env.OPENROUTER_API_KEY) {
-      const openrouterProvider = {
-        id: 'openrouter',
-        name: '🌐 OpenRouter (300+ Models)',
-        models: [
-          // OpenAI Models
-          { id: 'openai/gpt-5-chat', name: 'GPT-5 Chat (Latest)', provider: 'openrouter', requiresKey: true, context: 400000 },
-          { id: 'openai/gpt-5-mini', name: 'GPT-5 Mini (Latest)', provider: 'openrouter', requiresKey: true, context: 400000 },
-          { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'openrouter', requiresKey: true, context: 128000 },
-          { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openrouter', requiresKey: true, context: 128000 },
-          
-          // Anthropic Models
-          { id: 'anthropic/claude-opus-4.1', name: 'Claude Opus 4.1 (Latest)', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'anthropic/claude-opus-4', name: 'Claude Opus 4', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'openrouter', requiresKey: true, context: 200000 },
-          
-          // Google Models
-          { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro (Latest)', provider: 'openrouter', requiresKey: true, context: 1048576 },
-          { id: 'google/gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', provider: 'openrouter', requiresKey: true, context: 1048576 },
-          { id: 'google/gemini-pro-1.5', name: 'Gemini 1.5 Pro', provider: 'openrouter', requiresKey: true, context: 2000000 },
-          
-          // Meta Models
-          { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick (Latest)', provider: 'openrouter', requiresKey: true, context: 1048576 },
-          { id: 'meta-llama/llama-4-scout', name: 'Llama 4 Scout', provider: 'openrouter', requiresKey: true, context: 1048576 },
-          { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', provider: 'openrouter', requiresKey: true, context: 65536 },
-          
-          // Mistral Models
-          { id: 'mistralai/mistral-large-2411', name: 'Mistral Large 2411', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'mistralai/codestral-2501', name: 'Codestral 2501 (Latest)', provider: 'openrouter', requiresKey: true, context: 262144 },
-          
-          // xAI Models
-          { id: 'x-ai/grok-4', name: 'Grok 4 (Latest)', provider: 'openrouter', requiresKey: true, context: 256000 },
-          { id: 'x-ai/grok-2-1212', name: 'Grok 2', provider: 'openrouter', requiresKey: true, context: 131072 },
-          
-          // Other Premium Models
-          { id: 'microsoft/phi-4-reasoning-plus', name: 'Microsoft Phi 4 Reasoning+', provider: 'openrouter', requiresKey: true, context: 32768 },
-          { id: 'microsoft/phi-4-multimodal-instruct', name: 'Microsoft Phi 4 Multimodal', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'qwen/qwen-2.5-72b-instruct:free', name: 'Qwen 2.5 72B (Free)', provider: 'openrouter', requiresKey: true, context: 32768 },
-          { id: 'qwen/qwen-turbo', name: 'Qwen Turbo', provider: 'openrouter', requiresKey: true, context: 1000000 },
-          { id: 'cohere/command-r-plus-08-2024', name: 'Cohere Command R+', provider: 'openrouter', requiresKey: true, context: 128000 },
-          { id: 'deepseek/deepseek-r1-0528', name: 'DeepSeek R1 (Latest)', provider: 'openrouter', requiresKey: true, context: 163840 }
-        ]
-      };
-      
-      providers.push(openrouterProvider);
-    }
 
     // Check which API keys are available
     const hasOpenAI = !!process.env.OPENAI_API_KEY;
