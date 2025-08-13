@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
+import OpenAI from 'openai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,6 +17,9 @@ dotenv.config({ path: join(__dirname, '../.env') });
 const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
+
+// Initialize AI clients
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 // Database setup - use persistent volume in production
 const dbDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || __dirname;
@@ -66,6 +70,18 @@ db.exec(`
     total_tokens INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    model_id INTEGER,
+    title TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (model_id) REFERENCES models(id)
   )
 `);
 
@@ -236,37 +252,106 @@ app.post('/api/models', authenticateToken, (req, res) => {
   }
 });
 
-// Chat completions endpoint - proxy to AI providers
+// Conversations endpoint
+app.post('/api/conversations', authenticateToken, (req, res) => {
+  try {
+    const { model_id, title } = req.body;
+    
+    const result = db.prepare(
+      'INSERT INTO conversations (user_id, model_id, title) VALUES (?, ?, ?)'
+    ).run(req.user.userId, model_id || null, title || 'New Conversation');
+    
+    res.status(201).json({ 
+      id: result.lastInsertRowid,
+      user_id: req.user.userId,
+      model_id,
+      title: title || 'New Conversation',
+      created_at: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error creating conversation:', error);
+    res.status(500).json({ error: 'Failed to create conversation' });
+  }
+});
+
+// Chat completions endpoint - REAL API implementation
 app.post('/api/chat/completions', authenticateToken, async (req, res) => {
   try {
     const { model, messages, temperature = 0.7, max_tokens = 1000 } = req.body;
     
     // Determine provider from model ID
-    let provider = 'openai';
-    if (model.includes('claude')) provider = 'anthropic';
-    if (model.includes('gemini')) provider = 'google';
+    let response;
     
-    // For now, return a mock response to test
-    // In production, you'd make actual API calls here
-    res.json({
-      id: 'chatcmpl-' + Date.now(),
-      object: 'chat.completion',
-      created: Math.floor(Date.now() / 1000),
-      model: model,
-      choices: [{
-        index: 0,
-        message: {
-          role: 'assistant',
-          content: `This is a test response from ${model}. To enable real AI responses, the backend needs to implement API calls to ${provider}.`
-        },
-        finish_reason: 'stop'
-      }],
-      usage: {
-        prompt_tokens: 100,
-        completion_tokens: 50,
-        total_tokens: 150
+    if (model.includes('gpt') && openai) {
+      // OpenAI API call
+      try {
+        const completion = await openai.chat.completions.create({
+          model: model,
+          messages: messages,
+          temperature: temperature,
+          max_tokens: max_tokens,
+        });
+        
+        response = completion;
+      } catch (error) {
+        console.error('OpenAI API error:', error);
+        return res.status(500).json({ error: 'Failed to generate response from OpenAI' });
       }
-    });
+    } else if (model.includes('claude') && process.env.ANTHROPIC_API_KEY) {
+      // Anthropic API call (you'd need to install @anthropic-ai/sdk)
+      // For now, return a message that Anthropic is not yet implemented
+      response = {
+        id: 'claude-' + Date.now(),
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: model,
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: 'Anthropic Claude integration is coming soon. Please use OpenAI models for now.'
+          },
+          finish_reason: 'stop'
+        }],
+        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }
+      };
+    } else if (model.includes('gemini') && process.env.GOOGLE_API_KEY) {
+      // Google API call (you'd need to install @google/generative-ai)
+      // For now, return a message that Google is not yet implemented
+      response = {
+        id: 'gemini-' + Date.now(),
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: model,
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: 'Google Gemini integration is coming soon. Please use OpenAI models for now.'
+          },
+          finish_reason: 'stop'
+        }],
+        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }
+      };
+    } else {
+      return res.status(400).json({ error: 'Model not supported or API key not configured' });
+    }
+    
+    // Track token usage
+    if (response.usage) {
+      db.prepare(
+        'INSERT INTO token_usage (user_id, model_id, model_name, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(
+        req.user.userId,
+        model,
+        model,
+        response.usage.prompt_tokens || 0,
+        response.usage.completion_tokens || 0,
+        response.usage.total_tokens || 0
+      );
+    }
+    
+    res.json(response);
   } catch (error) {
     console.error('Chat completion error:', error);
     res.status(500).json({ error: 'Failed to generate response' });
