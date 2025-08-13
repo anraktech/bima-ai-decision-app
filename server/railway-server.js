@@ -287,7 +287,7 @@ app.get('/api/admin/tables', (req, res) => {
 app.get('/api/admin/table/:tableName', (req, res) => {
   try {
     const { tableName } = req.params;
-    const limit = parseInt(req.query.limit as string) || 100;
+    const limit = parseInt(req.query.limit) || 100;
     
     // Validate table name to prevent SQL injection
     const validTables = ['users', 'models', 'documents', 'token_usage', 'conversations'];
@@ -462,7 +462,7 @@ app.post('/api/models', authenticateToken, (req, res) => {
 app.post('/api/models/:modelId/documents', authenticateToken, upload.array('documents', 3), async (req, res) => {
   try {
     const { modelId } = req.params;
-    const files = req.files as Express.Multer.File[];
+    const files = req.files;
     
     console.log('📄 Document upload for model:', modelId, 'Files:', files?.length || 0);
     
