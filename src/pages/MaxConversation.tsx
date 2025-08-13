@@ -240,6 +240,7 @@ export function MaxConversation() {
       // Add error message to conversation
       const errorMessage: Message = {
         id: `error-${Date.now()}`,
+        type: 'ai',
         modelId: currentModel.id,
         modelName: currentModel.model?.displayName || 'AI Model',
         modelAlias: currentModel.name,

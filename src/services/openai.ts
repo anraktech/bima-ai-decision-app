@@ -107,7 +107,7 @@ export const generateOpenAIResponse = async (
   systemInstructions: string,
   messages: { content: string; sender: string }[],
   baseModel?: string, // For custom models
-  token?: string // For fetching knowledge base
+  apiToken?: string // For fetching knowledge base
 ): Promise<OpenAIResponse> => {
   try {
     // If it's a custom model, use the baseModel, otherwise find the standard model
@@ -124,8 +124,8 @@ export const generateOpenAIResponse = async (
     // Enhanced system instructions with knowledge base for custom models
     let enhancedSystemInstructions = systemInstructions;
     
-    if (modelId.startsWith('custom-') && token) {
-      const knowledgeBase = await fetchKnowledgeBase(modelId, token);
+    if (modelId.startsWith('custom-') && apiToken) {
+      const knowledgeBase = await fetchKnowledgeBase(modelId, apiToken);
       if (knowledgeBase && knowledgeBase.length > 0) {
         const documentsContext = knowledgeBase.map((doc: any, index: number) => 
           `Document ${index + 1} (${doc.original_name}):\n${doc.content}\n`
@@ -168,13 +168,27 @@ When referencing information from these documents, mention the document name in 
       ];
     }
 
-    const completion = await openai.chat.completions.create({
-      model: model.name,
-      messages: conversationMessages,
-      max_tokens: Math.min(4000, model.maxTokens),
-      temperature: model.id === 'o1' || model.id === 'o1-mini' ? 1 : 0.7, // o1 models require temperature=1
-      stream: false
+    // Call our backend instead of OpenAI directly
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/api/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        model: model.name,
+        messages: conversationMessages,
+        max_tokens: Math.min(4000, model.maxTokens),
+        temperature: model.id === 'o1' || model.id === 'o1-mini' ? 1 : 0.7
+      })
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const completion = await response.json();
 
     return {
       content: completion.choices[0]?.message?.content || 'No response generated',

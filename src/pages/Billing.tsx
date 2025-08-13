@@ -116,8 +116,8 @@ export const Billing = () => {
     }
   ];
 
-  const currentUserTier = user?.subscription?.tier || 'explore';
-  const monthlyTokenUsage = user?.usage?.currentMonth || 0;
+  const currentUserTier = (user as any)?.subscription?.tier || 'explore';
+  const monthlyTokenUsage = (user as any)?.usage?.currentMonth || 0;
 
   const handleSelectPlan = (planId: string) => {
     setSelectedPlan(planId);

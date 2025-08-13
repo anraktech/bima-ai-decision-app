@@ -1,3 +1,5 @@
+import { API_URL } from '../config/api';
+
 interface AnthropicResponse {
   content: string;
   usage?: {

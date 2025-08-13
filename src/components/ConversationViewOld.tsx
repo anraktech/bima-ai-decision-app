@@ -61,7 +61,7 @@ export const ConversationView = ({
             },
             body: JSON.stringify({
               conversationId: conversation.id,
-              shareCode: conversation.multiplayerConfig.liveToken
+              shareCode: conversation.multiplayerConfig?.liveToken
             })
           });
           console.log('Live session created successfully');
@@ -96,7 +96,7 @@ export const ConversationView = ({
               'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
-              shareCode: conversation.multiplayerConfig.liveToken,
+              shareCode: conversation.multiplayerConfig?.liveToken,
               message: latestMessage
             })
           });

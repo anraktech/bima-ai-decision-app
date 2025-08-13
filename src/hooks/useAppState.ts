@@ -300,10 +300,10 @@ export const useAppState = () => {
             messageHistory
           );
           responseContent = apiResponse.content;
-          tokenUsage = apiResponse.usage ? {
-            prompt_tokens: apiResponse.usage.promptTokens,
-            completion_tokens: apiResponse.usage.completionTokens,
-            total_tokens: apiResponse.usage.totalTokens
+          tokenUsage = apiResponse.tokenUsage ? {
+            prompt_tokens: apiResponse.tokenUsage.promptTokens,
+            completion_tokens: apiResponse.tokenUsage.completionTokens,
+            total_tokens: apiResponse.tokenUsage.totalTokens
           } : undefined;
         } else if (provider === 'openai') {
           const apiResponse = await generateOpenAIResponse(
