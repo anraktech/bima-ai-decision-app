@@ -804,4 +804,5 @@ app.get('/api/models/providers', async (req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`Railway server running on http://localhost:${PORT}`);
+  console.log('✅ OpenRouter integration deployed - Single category with 25+ models');
 });
