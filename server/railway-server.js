@@ -696,22 +696,35 @@ app.get('/api/models/providers', async (req, res) => {
         id: 'openrouter',
         name: 'OpenRouter',
         models: [
-          // MISTRAL MODELS (OPENROUTER EXCLUSIVE)
+          // 🔥 FLAGSHIP PREMIUM MODELS (LATEST & GREATEST) 🔥
+          
+          // GPT-5 MODELS (NEWEST OPENAI)
+          { id: 'openai/gpt-5-chat', name: '🚀 GPT-5 Chat (Latest)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'openai/gpt-5-mini', name: '⚡ GPT-5 Mini (Fast)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'openai/gpt-5-nano', name: '💨 GPT-5 Nano (Ultra Fast)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          
+          // CLAUDE OPUS & SONNET 4 (NEWEST ANTHROPIC)
+          { id: 'anthropic/claude-opus-4.1', name: '🧠 Claude Opus 4.1 (Ultimate)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-opus-4', name: '🎯 Claude Opus 4 (Powerful)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-sonnet-4', name: '⚡ Claude Sonnet 4 (Balanced)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          
+          // GEMINI 2.5 MODELS (NEWEST GOOGLE)
+          { id: 'google/gemini-2.5-pro', name: '💎 Gemini 2.5 Pro (Ultimate)', provider: 'openrouter', requiresKey: true, context: 2000000 },
+          { id: 'google/gemini-2.5-flash', name: '⚡ Gemini 2.5 Flash (Lightning)', provider: 'openrouter', requiresKey: true, context: 1000000 },
+          { id: 'google/gemini-2.5-pro-exp-03-25', name: '🧪 Gemini 2.5 Pro Experimental', provider: 'openrouter', requiresKey: true, context: 2000000 },
+          
+          // GROK 3 & 4 MODELS (NEWEST XAI)
+          { id: 'x-ai/grok-4', name: '🔥 Grok 4 (Latest)', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'x-ai/grok-3', name: '🚀 Grok 3 (Advanced)', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'x-ai/grok-3-mini', name: '⚡ Grok 3 Mini (Fast)', provider: 'openrouter', requiresKey: true, context: 131072 },
+          
+          // EXISTING PREMIUM MODELS
           { id: 'mistralai/mistral-large-2411', name: 'Mistral Large 2411', provider: 'openrouter', requiresKey: true, context: 131072 },
           { id: 'mistralai/codestral-2508', name: 'Codestral 2508 (Code)', provider: 'openrouter', requiresKey: true, context: 32768 },
           { id: 'mistralai/pixtral-large-2411', name: 'Pixtral Large (Vision)', provider: 'openrouter', requiresKey: true, context: 128000 },
-          { id: 'mistralai/pixtral-12b', name: 'Pixtral 12B (Vision)', provider: 'openrouter', requiresKey: true, context: 128000 },
-          
-          // QWEN MODELS (OPENROUTER EXCLUSIVE)  
           { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B Instruct', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'qwen/qwen-turbo', name: 'Qwen Turbo', provider: 'openrouter', requiresKey: true, context: 1000000 },
-          
-          // COHERE MODELS (OPENROUTER EXCLUSIVE)
           { id: 'cohere/command-r-plus-08-2024', name: 'Cohere Command R+', provider: 'openrouter', requiresKey: true, context: 128000 },
-          
-          // META MODELS (LARGER SIZES NOT AVAILABLE ELSEWHERE)
-          { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B (Largest)', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'meta-llama/llama-3.2-90b-vision-instruct', name: 'Llama 3.2 90B Vision', provider: 'openrouter', requiresKey: true, context: 131072 }
+          { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B (Largest)', provider: 'openrouter', requiresKey: true, context: 131072 }
         ]
       });
     }
