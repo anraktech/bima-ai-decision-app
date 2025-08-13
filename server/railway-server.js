@@ -105,7 +105,7 @@ db.exec(`
     system_prompt TEXT,
     greeting_message TEXT,
     is_shared INTEGER DEFAULT 0,
-    share_token TEXT UNIQUE,
+    share_token TEXT,
     share_count INTEGER DEFAULT 0,
     is_imported INTEGER DEFAULT 0,
     original_model_id INTEGER,
@@ -115,6 +115,31 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id)
   )
 `);
+
+// Migration: Add sharing columns to existing models table if they don't exist
+try {
+  // Check if share_token column exists
+  const columns = db.prepare("PRAGMA table_info(models)").all();
+  const hasShareToken = columns.some(col => col.name === 'share_token');
+  
+  if (!hasShareToken) {
+    console.log('🔄 Adding sharing columns to existing models table...');
+    
+    // Add columns one by one (can't add UNIQUE constraint with ALTER TABLE)
+    db.exec('ALTER TABLE models ADD COLUMN share_token TEXT');
+    db.exec('ALTER TABLE models ADD COLUMN share_count INTEGER DEFAULT 0');
+    db.exec('ALTER TABLE models ADD COLUMN is_imported INTEGER DEFAULT 0');
+    db.exec('ALTER TABLE models ADD COLUMN original_model_id INTEGER');
+    db.exec('ALTER TABLE models ADD COLUMN original_owner_name TEXT');
+    db.exec('ALTER TABLE models ADD COLUMN original_owner_email TEXT');
+    
+    console.log('✅ Sharing columns added successfully');
+  } else {
+    console.log('ℹ️  Sharing columns already exist');
+  }
+} catch (error) {
+  console.error('❌ Migration error:', error.message);
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS token_usage (
