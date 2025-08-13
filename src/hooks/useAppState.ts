@@ -9,6 +9,7 @@ import { API_URL, getApiUrl, getWsUrl } from '../config/api';
 
 // Perplexity removed - models not working properly
 import { generateDeepseekResponse } from '../services/deepseek';
+import { generateOpenRouterResponse } from '../services/openrouter';
 import { useAuth } from '../contexts/AuthContext';
 
 const initialState: AppState = {
@@ -310,6 +311,17 @@ export const useAppState = () => {
             modelId,
             activePanel.systemInstructions,
             messageHistory,
+            undefined,
+            token || undefined
+          );
+          responseContent = apiResponse.content;
+          tokenUsage = apiResponse.usage;
+        } else if (provider === 'openrouter') {
+          const apiResponse = await generateOpenRouterResponse(
+            modelId,
+            activePanel.systemInstructions,
+            messageHistory,
+            undefined,
             undefined,
             token || undefined
           );
