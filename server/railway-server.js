@@ -430,6 +430,37 @@ app.get('/api/models', authenticateToken, (req, res) => {
   }
 });
 
+// Get single model by ID
+app.get('/api/models/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('📋 Fetching model:', id, 'for user:', req.user.userId);
+    
+    const model = db.prepare('SELECT * FROM models WHERE id = ? AND user_id = ?').get(id, req.user.userId);
+    if (!model) {
+      return res.status(404).json({ error: 'Model not found' });
+    }
+    
+    // Also get document count for this model
+    const docCount = db.prepare('SELECT COUNT(*) as count FROM documents WHERE model_id = ?').get(id);
+    model.document_count = docCount.count;
+    
+    // Normalize field names for frontend compatibility
+    const responseModel = {
+      ...model,
+      system_instructions: model.system_prompt,
+      opening_statement: model.greeting_message,
+      documents: [] // Documents will be fetched separately by the documents endpoint
+    };
+    
+    console.log('✅ Model found:', model.name, 'with', docCount.count, 'documents');
+    res.json(responseModel);
+  } catch (error) {
+    console.error('Error fetching model:', error);
+    res.status(500).json({ error: 'Failed to fetch model' });
+  }
+});
+
 app.post('/api/models', authenticateToken, (req, res) => {
   try {
     console.log('📝 Custom model creation request:', JSON.stringify(req.body, null, 2));
@@ -455,6 +486,55 @@ app.post('/api/models', authenticateToken, (req, res) => {
   } catch (error) {
     console.error('Error creating model:', error);
     res.status(500).json({ error: 'Failed to create model' });
+  }
+});
+
+// Update model by ID
+app.put('/api/models/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('🔄 Updating model:', id, 'with data:', JSON.stringify(req.body, null, 2));
+    
+    const { name, baseModel, base_model, systemInstructions, system_prompt, openingStatement, greeting_message } = req.body;
+    
+    // Support both camelCase and snake_case field names
+    const modelName = name;
+    const modelBaseModel = baseModel || base_model;
+    const modelSystemPrompt = systemInstructions || system_prompt;
+    const modelGreetingMessage = openingStatement || greeting_message;
+    
+    // Verify the model belongs to the user
+    const existingModel = db.prepare('SELECT * FROM models WHERE id = ? AND user_id = ?').get(id, req.user.userId);
+    if (!existingModel) {
+      return res.status(404).json({ error: 'Model not found' });
+    }
+    
+    if (!modelName || !modelBaseModel) {
+      console.log('❌ Missing required fields - name:', !!modelName, 'baseModel:', !!modelBaseModel);
+      return res.status(400).json({ error: 'Name and base model are required' });
+    }
+    
+    // Update the model
+    db.prepare(
+      'UPDATE models SET name = ?, base_model = ?, system_prompt = ?, greeting_message = ? WHERE id = ? AND user_id = ?'
+    ).run(modelName, modelBaseModel, modelSystemPrompt || '', modelGreetingMessage || '', id, req.user.userId);
+    
+    // Fetch updated model
+    const updatedModel = db.prepare('SELECT * FROM models WHERE id = ?').get(id);
+    const docCount = db.prepare('SELECT COUNT(*) as count FROM documents WHERE model_id = ?').get(id);
+    
+    const responseModel = {
+      ...updatedModel,
+      system_instructions: updatedModel.system_prompt,
+      opening_statement: updatedModel.greeting_message,
+      document_count: docCount.count
+    };
+    
+    console.log('✅ Model updated:', modelName);
+    res.json(responseModel);
+  } catch (error) {
+    console.error('Error updating model:', error);
+    res.status(500).json({ error: 'Failed to update model' });
   }
 });
 
