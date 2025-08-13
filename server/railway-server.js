@@ -105,6 +105,12 @@ db.exec(`
     system_prompt TEXT,
     greeting_message TEXT,
     is_shared INTEGER DEFAULT 0,
+    share_token TEXT UNIQUE,
+    share_count INTEGER DEFAULT 0,
+    is_imported INTEGER DEFAULT 0,
+    original_model_id INTEGER,
+    original_owner_name TEXT,
+    original_owner_email TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
   )
@@ -291,6 +297,17 @@ const authenticateToken = (req, res, next) => {
     req.user = user;
     next();
   });
+};
+
+// Generate share token for model sharing
+const generateShareToken = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let token = '';
+  for (let i = 0; i < 8; i++) {
+    if (i === 4) token += '-';
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
 };
 
 // Enhanced health check with OpenRouter status
@@ -793,6 +810,167 @@ app.put('/api/models/:id', authenticateToken, (req, res) => {
   } catch (error) {
     console.error('Error updating model:', error);
     res.status(500).json({ error: 'Failed to update model' });
+  }
+});
+
+// Share model endpoint - Generate share token and make model public
+app.post('/api/models/:id/share', authenticateToken, (req, res) => {
+  try {
+    const model = db.prepare('SELECT * FROM models WHERE id = ? AND user_id = ?').get(
+      req.params.id,
+      req.user.userId
+    );
+
+    if (!model) {
+      return res.status(404).json({ error: 'Model not found' });
+    }
+
+    // Generate share token if not exists, otherwise reuse existing token
+    let shareToken = model.share_token;
+    if (!shareToken) {
+      shareToken = generateShareToken();
+      db.prepare('UPDATE models SET share_token = ?, is_shared = 1 WHERE id = ?').run(
+        shareToken,
+        req.params.id
+      );
+    } else {
+      // Just set is_shared to 1 if token already exists
+      db.prepare('UPDATE models SET is_shared = 1 WHERE id = ?').run(req.params.id);
+    }
+
+    res.json({ shareToken, message: 'Model is now publicly shareable' });
+  } catch (error) {
+    console.error('Share model error:', error);
+    res.status(500).json({ error: 'Failed to share model' });
+  }
+});
+
+// Revoke model sharing (but keep the token for future use)
+app.delete('/api/models/:id/share', authenticateToken, (req, res) => {
+  try {
+    const result = db.prepare(
+      'UPDATE models SET is_shared = 0 WHERE id = ? AND user_id = ?'
+    ).run(req.params.id, req.user.userId);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Model not found' });
+    }
+
+    res.json({ message: 'Model sharing revoked' });
+  } catch (error) {
+    console.error('Revoke share error:', error);
+    res.status(500).json({ error: 'Failed to revoke sharing' });
+  }
+});
+
+// Import a shared model by token
+app.post('/api/models/import', authenticateToken, async (req, res) => {
+  try {
+    const { shareToken } = req.body;
+
+    if (!shareToken) {
+      return res.status(400).json({ error: 'Share token is required' });
+    }
+
+    // Find the original model
+    const originalModel = db.prepare(`
+      SELECT m.*, u.name as owner_name, u.email as owner_email
+      FROM models m
+      JOIN users u ON m.user_id = u.id
+      WHERE m.share_token = ? AND m.is_shared = 1
+    `).get(shareToken);
+
+    if (!originalModel) {
+      return res.status(404).json({ error: 'Invalid share token or model not found' });
+    }
+
+    // Check if already imported by looking for existing model with same original_model_id
+    const existingImported = db.prepare(`
+      SELECT id FROM models 
+      WHERE user_id = ? AND original_model_id = ?
+    `).get(req.user.userId, originalModel.id);
+
+    if (existingImported) {
+      return res.status(400).json({ error: 'Model already imported' });
+    }
+
+    // Create a new model for the user (imported copy)
+    const importedModelResult = db.prepare(`
+      INSERT INTO models (
+        user_id, name, base_model, system_prompt, greeting_message, 
+        is_imported, original_model_id, original_owner_name, original_owner_email,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(
+      req.user.userId,
+      originalModel.name,
+      originalModel.base_model,
+      originalModel.system_prompt,
+      originalModel.greeting_message,
+      originalModel.id,
+      originalModel.owner_name,
+      originalModel.owner_email
+    );
+
+    // Copy documents from original model
+    const originalDocuments = db.prepare(`
+      SELECT * FROM documents WHERE model_id = ?
+    `).all(originalModel.id);
+
+    for (const doc of originalDocuments) {
+      db.prepare(`
+        INSERT INTO documents (
+          model_id, user_id, filename, original_name, content, file_type, file_size, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `).run(
+        importedModelResult.lastInsertRowid,
+        req.user.userId,
+        doc.filename,
+        doc.original_name,
+        doc.content,
+        doc.file_type,
+        doc.file_size
+      );
+    }
+
+    // Increment share count
+    db.prepare('UPDATE models SET share_count = share_count + 1 WHERE id = ?').run(originalModel.id);
+
+    // Get the newly created model with document count
+    const importedModel = db.prepare(`
+      SELECT m.*, COUNT(d.id) as document_count
+      FROM models m
+      LEFT JOIN documents d ON m.id = d.model_id
+      WHERE m.id = ?
+      GROUP BY m.id
+    `).get(importedModelResult.lastInsertRowid);
+
+    res.json({
+      message: 'Model imported successfully',
+      model: importedModel
+    });
+  } catch (error) {
+    console.error('Import model error:', error);
+    res.status(500).json({ error: 'Failed to import model' });
+  }
+});
+
+// Get all imported models for a user
+app.get('/api/models/imported', authenticateToken, (req, res) => {
+  try {
+    const importedModels = db.prepare(`
+      SELECT m.*, COUNT(d.id) as document_count
+      FROM models m
+      LEFT JOIN documents d ON m.id = d.model_id
+      WHERE m.user_id = ? AND m.is_imported = 1
+      GROUP BY m.id
+      ORDER BY m.created_at DESC
+    `).all(req.user.userId);
+
+    res.json(importedModels);
+  } catch (error) {
+    console.error('Error fetching imported models:', error);
+    res.status(500).json({ error: 'Failed to fetch imported models' });
   }
 });
 
