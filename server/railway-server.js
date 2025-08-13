@@ -41,7 +41,9 @@ const openrouter = process.env.OPENROUTER_API_KEY ? new OpenAI({
 }) : null;
 
 // Database setup - use persistent volume in production
-const dbDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || __dirname;
+// On Railway, use /data mount path, otherwise use current directory
+const dbDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || 
+              (process.env.RAILWAY_ENVIRONMENT ? '/data' : __dirname);
 const dbPath = join(dbDir, 'database.db');
 
 // Create directory if it doesn't exist
@@ -148,6 +150,43 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (model_id) REFERENCES models(id)
   )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS community_posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    username TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    model_token TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '[]',
+    likes INTEGER DEFAULT 0,
+    views INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS community_post_likes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    post_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (post_id) REFERENCES community_posts (id) ON DELETE CASCADE,
+    UNIQUE(user_id, post_id)
+  )
+`);
+
+// Create indexes for better performance
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_community_posts_user_id ON community_posts(user_id);
+  CREATE INDEX IF NOT EXISTS idx_community_posts_created_at ON community_posts(created_at);
+  CREATE INDEX IF NOT EXISTS idx_community_post_likes_user_id ON community_post_likes(user_id);
+  CREATE INDEX IF NOT EXISTS idx_community_post_likes_post_id ON community_post_likes(post_id);
 `);
 
 // CORS configuration for production
@@ -430,6 +469,144 @@ app.get('/api/models', authenticateToken, (req, res) => {
   }
 });
 
+// Model providers endpoint (MUST be before /api/models/:id to avoid conflicts)
+app.get('/api/models/providers', async (req, res) => {
+  try {
+    let providers = [];
+
+    // Add OpenRouter first if key is available
+    if (process.env.OPENROUTER_API_KEY) {
+      providers.push({
+        id: 'openrouter',
+        name: 'OpenRouter',
+        models: [
+          // 🔥 FLAGSHIP PREMIUM MODELS (LATEST & GREATEST) 🔥
+          
+          // GPT-5 MODELS (NEWEST OPENAI)
+          { id: 'openai/gpt-5-chat', name: '🚀 GPT-5 Chat (Latest)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'openai/gpt-5-mini', name: '⚡ GPT-5 Mini (Fast)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'openai/gpt-5-nano', name: '💨 GPT-5 Nano (Ultra Fast)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          
+          // CLAUDE OPUS & SONNET 4 (NEWEST ANTHROPIC)
+          { id: 'anthropic/claude-opus-4.1', name: '🧠 Claude Opus 4.1 (Ultimate)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-opus-4', name: '🎯 Claude Opus 4 (Powerful)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-sonnet-4', name: '⚡ Claude Sonnet 4 (Balanced)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          
+          // GEMINI 2.5 MODELS (NEWEST GOOGLE)
+          { id: 'google/gemini-2.5-pro', name: '💎 Gemini 2.5 Pro (Ultimate)', provider: 'openrouter', requiresKey: true, context: 2000000 },
+          { id: 'google/gemini-2.5-flash', name: '⚡ Gemini 2.5 Flash (Lightning)', provider: 'openrouter', requiresKey: true, context: 1000000 },
+          { id: 'google/gemini-2.5-pro-exp-03-25', name: '🧪 Gemini 2.5 Pro Experimental', provider: 'openrouter', requiresKey: true, context: 2000000 },
+          
+          // GROK 3 & 4 MODELS (NEWEST XAI)
+          { id: 'x-ai/grok-4', name: '🔥 Grok 4 (Latest)', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'x-ai/grok-3', name: '🚀 Grok 3 (Advanced)', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'x-ai/grok-3-mini', name: '⚡ Grok 3 Mini (Fast)', provider: 'openrouter', requiresKey: true, context: 131072 },
+          
+          // EXISTING PREMIUM MODELS
+          { id: 'mistralai/mistral-large-2411', name: 'Mistral Large 2411', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'mistralai/codestral-2508', name: 'Codestral 2508 (Code)', provider: 'openrouter', requiresKey: true, context: 32768 },
+          { id: 'mistralai/pixtral-large-2411', name: 'Pixtral Large (Vision)', provider: 'openrouter', requiresKey: true, context: 128000 },
+          { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B Instruct', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'cohere/command-r-plus-08-2024', name: 'Cohere Command R+', provider: 'openrouter', requiresKey: true, context: 128000 },
+          { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B (Largest)', provider: 'openrouter', requiresKey: true, context: 131072 }
+        ]
+      });
+    }
+
+    // Add other providers
+    providers = providers.concat([
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        models: [
+          { id: 'gpt-4o', name: 'GPT-4o (Latest)', provider: 'openai', requiresKey: true, context: 128000 },
+          { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', requiresKey: true, context: 128000 },
+          { id: 'o1-pro', name: 'OpenAI o1 Pro (Reasoning)', provider: 'openai', requiresKey: true, context: 200000 },
+          { id: 'o1', name: 'OpenAI o1 (Reasoning)', provider: 'openai', requiresKey: true, context: 200000 },
+          { id: 'o1-mini', name: 'OpenAI o1 Mini (Reasoning)', provider: 'openai', requiresKey: true, context: 128000 },
+          { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openai', requiresKey: true, context: 128000 },
+          { id: 'gpt-4', name: 'GPT-4', provider: 'openai', requiresKey: true, context: 8192 },
+          { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai', requiresKey: true, context: 16385 }
+        ]
+      },
+      {
+        id: 'anthropic',
+        name: 'Anthropic (Claude)',
+        models: [
+          { id: 'claude-opus-4-1-20250805', name: 'Claude Opus 4.1 (Latest)', provider: 'anthropic', requiresKey: true, context: 200000 },
+          { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4 (Latest)', provider: 'anthropic', requiresKey: true, context: 200000 },
+          { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', provider: 'anthropic', requiresKey: true, context: 200000 },
+          { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic', requiresKey: true, context: 200000 },
+          { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku (Latest)', provider: 'anthropic', requiresKey: true, context: 200000 },
+          { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', provider: 'anthropic', requiresKey: true, context: 200000 }
+        ]
+      },
+      {
+        id: 'groq',
+        name: 'Groq',
+        models: [
+          { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile (Latest)', provider: 'groq', requiresKey: true, context: 131072 },
+          { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant', provider: 'groq', requiresKey: true, context: 131072 }
+        ]
+      },
+      {
+        id: 'google',
+        name: 'Google (Gemini)',
+        models: [
+          { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'google', requiresKey: true, context: 2000000 },
+          { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'google', requiresKey: true, context: 1000000 },
+          { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash 8B', provider: 'google', requiresKey: true, context: 1000000 }
+        ]
+      },
+      {
+        id: 'xai',
+        name: 'xAI (Grok)',
+        models: [
+          { id: 'grok-2-1212', name: 'Grok 2 (Latest)', provider: 'xai', requiresKey: true, context: 131072 },
+          { id: 'grok-2-vision-1212', name: 'Grok 2 Vision (Latest)', provider: 'xai', requiresKey: true, context: 131072 }
+        ]
+      },
+      {
+        id: 'deepseek',
+        name: 'Deepseek',
+        models: [
+          { id: 'deepseek-chat', name: 'Deepseek Chat (Latest)', provider: 'deepseek', requiresKey: true, context: 32768 },
+          { id: 'deepseek-coder', name: 'Deepseek Coder', provider: 'deepseek', requiresKey: true, context: 16384 }
+        ]
+      }
+    ]);
+
+    // Check which API keys are available
+    const hasOpenAI = !!process.env.OPENAI_API_KEY;
+    const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
+    const hasGoogle = !!process.env.GOOGLE_API_KEY;
+    const hasGroq = !!process.env.GROQ_API_KEY;
+    const hasXAI = !!process.env.XAI_API_KEY;
+    const hasDeepseek = !!process.env.DEEPSEEK_API_KEY;
+    const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
+
+    // Filter providers based on available keys
+    const availableProviders = providers.filter(provider => {
+      if (provider.name === 'OpenAI') return hasOpenAI;
+      if (provider.name === 'Anthropic (Claude)') return hasAnthropic;
+      if (provider.name === 'Google (Gemini)') return hasGoogle;
+      if (provider.name === 'Groq') return hasGroq;
+      if (provider.name === 'xAI (Grok)') return hasXAI;
+      if (provider.name === 'Deepseek') return hasDeepseek;
+      if (provider.id === 'openrouter') return hasOpenRouter;
+      return false;
+    });
+
+    res.json({ 
+      success: true, 
+      providers: availableProviders 
+    });
+  } catch (error) {
+    console.error('Error fetching providers:', error);
+    res.status(500).json({ error: 'Failed to fetch providers' });
+  }
+});
+
 // Get single model by ID
 app.get('/api/models/:id', authenticateToken, (req, res) => {
   try {
@@ -659,6 +836,153 @@ app.post('/api/conversations', authenticateToken, (req, res) => {
   } catch (error) {
     console.error('Error creating conversation:', error);
     res.status(500).json({ error: 'Failed to create conversation' });
+  }
+});
+
+// Community posts endpoints
+app.get('/api/community/posts', (req, res) => {
+  try {
+    const posts = db.prepare(`
+      SELECT p.*, 
+             u.name as username,
+             COALESCE(l.like_count, 0) as likes
+      FROM community_posts p
+      LEFT JOIN users u ON p.user_id = u.id
+      LEFT JOIN (
+        SELECT post_id, COUNT(*) as like_count 
+        FROM community_post_likes 
+        GROUP BY post_id
+      ) l ON p.id = l.post_id
+      ORDER BY p.created_at DESC
+      LIMIT 50
+    `).all();
+    
+    // Parse tags from JSON string
+    const formattedPosts = posts.map(post => ({
+      ...post,
+      tags: JSON.parse(post.tags || '[]'),
+      timestamp: post.created_at
+    }));
+    
+    res.json(formattedPosts);
+  } catch (error) {
+    console.error('Error fetching community posts:', error);
+    res.status(500).json({ error: 'Failed to fetch posts' });
+  }
+});
+
+app.post('/api/community/posts', authenticateToken, (req, res) => {
+  try {
+    const { title, description, modelToken, tags } = req.body;
+    
+    if (!title || !description || !modelToken) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const tagsJson = JSON.stringify(tags || []);
+    
+    const result = db.prepare(`
+      INSERT INTO community_posts (user_id, username, title, description, model_token, tags)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(req.user.userId, req.user.name || 'Anonymous', title, description, modelToken.toUpperCase(), tagsJson);
+    
+    const newPost = db.prepare('SELECT * FROM community_posts WHERE id = ?').get(result.lastInsertRowid);
+    
+    // Format the response
+    const formattedPost = {
+      ...newPost,
+      tags: JSON.parse(newPost.tags || '[]'),
+      timestamp: newPost.created_at,
+      likes: 0
+    };
+    
+    res.status(201).json(formattedPost);
+  } catch (error) {
+    console.error('Error creating community post:', error);
+    res.status(500).json({ error: 'Failed to create post' });
+  }
+});
+
+app.post('/api/community/posts/:id/like', authenticateToken, (req, res) => {
+  try {
+    const postId = parseInt(req.params.id);
+    const userId = req.user.userId;
+    
+    // Check if post exists
+    const post = db.prepare('SELECT * FROM community_posts WHERE id = ?').get(postId);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    // Check if already liked
+    const existingLike = db.prepare('SELECT * FROM community_post_likes WHERE user_id = ? AND post_id = ?').get(userId, postId);
+    if (existingLike) {
+      return res.status(400).json({ error: 'Already liked this post' });
+    }
+    
+    // Add like
+    db.prepare('INSERT INTO community_post_likes (user_id, post_id) VALUES (?, ?)').run(userId, postId);
+    
+    // Update likes count
+    const likeCount = db.prepare('SELECT COUNT(*) as count FROM community_post_likes WHERE post_id = ?').get(postId).count;
+    db.prepare(`
+      UPDATE community_posts 
+      SET likes = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).run(likeCount, postId);
+    
+    const updatedPost = db.prepare('SELECT * FROM community_posts WHERE id = ?').get(postId);
+    res.json({ ...updatedPost, likes: likeCount });
+  } catch (error) {
+    console.error('Error liking post:', error);
+    res.status(500).json({ error: 'Failed to like post' });
+  }
+});
+
+app.delete('/api/community/posts/:id/like', authenticateToken, (req, res) => {
+  try {
+    const postId = parseInt(req.params.id);
+    const userId = req.user.userId;
+    
+    // Remove like
+    const result = db.prepare('DELETE FROM community_post_likes WHERE user_id = ? AND post_id = ?').run(userId, postId);
+    
+    if (result.changes === 0) {
+      return res.status(400).json({ error: 'Like not found' });
+    }
+    
+    // Update likes count
+    const likeCount = db.prepare('SELECT COUNT(*) as count FROM community_post_likes WHERE post_id = ?').get(postId).count;
+    db.prepare(`
+      UPDATE community_posts 
+      SET likes = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).run(likeCount, postId);
+    
+    const updatedPost = db.prepare('SELECT * FROM community_posts WHERE id = ?').get(postId);
+    res.json({ ...updatedPost, likes: likeCount });
+  } catch (error) {
+    console.error('Error unliking post:', error);
+    res.status(500).json({ error: 'Failed to unlike post' });
+  }
+});
+
+app.post('/api/community/posts/:id/view', (req, res) => {
+  try {
+    const postId = parseInt(req.params.id);
+    
+    // Increment view count
+    db.prepare(`
+      UPDATE community_posts 
+      SET views = views + 1, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).run(postId);
+    
+    const updatedPost = db.prepare('SELECT * FROM community_posts WHERE id = ?').get(postId);
+    res.json(updatedPost);
+  } catch (error) {
+    console.error('Error updating post views:', error);
+    res.status(500).json({ error: 'Failed to update views' });
   }
 });
 

@@ -7,6 +7,10 @@
   "deploy": {
     "startCommand": "node server/railway-server.js",
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
+    "restartPolicyMaxRetries": 10,
+    "volumeMount": {
+      "mountPath": "/data",
+      "volumeId": "${{RAILWAY_VOLUME_ID}}"
+    }
   }
 }
