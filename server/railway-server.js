@@ -20,7 +20,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-pro
 // Database setup
 const db = new Database(join(__dirname, 'database.db'));
 
-// Create minimal tables
+// Create tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,6 +29,34 @@ db.exec(`
     name TEXT NOT NULL,
     subscription_tier TEXT DEFAULT 'explore',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    base_model TEXT NOT NULL,
+    system_prompt TEXT,
+    greeting_message TEXT,
+    is_shared INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS token_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    model_id TEXT,
+    model_name TEXT,
+    prompt_tokens INTEGER,
+    completion_tokens INTEGER,
+    total_tokens INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
   )
 `);
 
@@ -169,6 +197,59 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
 });
 
 // Models endpoints
+app.get('/api/models', authenticateToken, (req, res) => {
+  try {
+    const models = db.prepare('SELECT * FROM models WHERE user_id = ? ORDER BY created_at DESC').all(req.user.userId);
+    res.json(models);
+  } catch (error) {
+    console.error('Error fetching models:', error);
+    res.status(500).json({ error: 'Failed to fetch models' });
+  }
+});
+
+app.post('/api/models', authenticateToken, (req, res) => {
+  try {
+    const { name, base_model, system_prompt, greeting_message } = req.body;
+    
+    if (!name || !base_model) {
+      return res.status(400).json({ error: 'Name and base model are required' });
+    }
+    
+    const result = db.prepare(
+      'INSERT INTO models (user_id, name, base_model, system_prompt, greeting_message) VALUES (?, ?, ?, ?, ?)'
+    ).run(req.user.userId, name, base_model, system_prompt || '', greeting_message || '');
+    
+    const model = db.prepare('SELECT * FROM models WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json(model);
+  } catch (error) {
+    console.error('Error creating model:', error);
+    res.status(500).json({ error: 'Failed to create model' });
+  }
+});
+
+// Usage stats endpoint
+app.get('/api/usage/stats', authenticateToken, (req, res) => {
+  try {
+    const stats = db.prepare(`
+      SELECT 
+        COALESCE(SUM(total_tokens), 0) as totalTokens,
+        COUNT(*) as totalConversations
+      FROM token_usage 
+      WHERE user_id = ?
+    `).get(req.user.userId);
+    
+    res.json({
+      totalTokens: stats.totalTokens || 0,
+      totalConversations: stats.totalConversations || 0,
+      dailyUsage: []
+    });
+  } catch (error) {
+    console.error('Error fetching usage stats:', error);
+    res.status(500).json({ error: 'Failed to fetch usage statistics' });
+  }
+});
+
+// Model providers endpoint
 app.get('/api/models/providers', async (req, res) => {
   try {
     const providers = [
