@@ -770,7 +770,7 @@ app.get('/api/models/providers', async (req, res) => {
           { id: 'deepseek-coder', name: 'Deepseek Coder', provider: 'deepseek', requiresKey: true, context: 16384 }
         ]
       }
-    ];
+    ]);
 
 
     // Check which API keys are available
