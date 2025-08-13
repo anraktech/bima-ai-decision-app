@@ -1606,7 +1606,7 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
       usageData: response.usage || 'No usage data'
     });
     
-    // Track token usage - adapted to existing table structure
+    // Track token usage - compatible with production database schema
     if (response.usage) {
       const totalTokens = response.usage.total_tokens || (response.usage.prompt_tokens + response.usage.completion_tokens) || 0;
       const cost = totalTokens * 0.00001; // Estimate cost
@@ -1620,17 +1620,37 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
       });
       
       try {
-        db.prepare(
-          'INSERT INTO token_usage (user_id, tokens, cost, model) VALUES (?, ?, ?, ?)'
-        ).run(
-          req.user.userId,
-          totalTokens,
-          cost,
-          model
-        );
+        // First, check what columns exist in the production database
+        const tableInfo = db.prepare("PRAGMA table_info(token_usage)").all();
+        const columnNames = tableInfo.map(col => col.name);
+        console.log('📊 Production table columns:', columnNames);
+        
+        // Use the correct schema based on what columns exist
+        if (columnNames.includes('tokens') && columnNames.includes('cost') && columnNames.includes('model')) {
+          // New schema - local development
+          db.prepare(
+            'INSERT INTO token_usage (user_id, tokens, cost, model) VALUES (?, ?, ?, ?)'
+          ).run(req.user.userId, totalTokens, cost, model);
+        } else if (columnNames.includes('total_tokens') && columnNames.includes('model_name')) {
+          // Production schema - Railway database
+          db.prepare(
+            'INSERT INTO token_usage (user_id, model_id, model_name, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?)'
+          ).run(
+            req.user.userId,
+            model,
+            model,
+            response.usage.prompt_tokens || 0,
+            response.usage.completion_tokens || 0,
+            totalTokens
+          );
+        } else {
+          console.error('❌ Unknown database schema. Available columns:', columnNames);
+        }
+        
         console.log(`✅ Usage tracked: ${totalTokens} tokens for ${model} (user ${req.user.userId})`);
       } catch (error) {
         console.error('❌ Failed to track usage in chat/completions:', error);
+        console.error('Error details:', error.message);
       }
     } else {
       console.warn('⚠️ No usage data in AI response - tracking skipped');
@@ -1646,15 +1666,88 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
 // Usage stats endpoint - Comprehensive analytics
 app.get('/api/usage/stats', authenticateToken, (req, res) => {
   try {
-    // Overall stats - adapted to existing table structure
-    const overallStats = db.prepare(`
-      SELECT 
-        COALESCE(SUM(tokens), 0) as totalTokens,
-        COALESCE(SUM(cost), 0) as totalCost,
-        COUNT(*) as totalUsageRecords
-      FROM token_usage 
-      WHERE user_id = ?
-    `).get(req.user.userId);
+    // Check database schema first
+    const tableInfo = db.prepare("PRAGMA table_info(token_usage)").all();
+    const columnNames = tableInfo.map(col => col.name);
+    console.log('📊 Usage stats - table columns:', columnNames);
+    
+    let overallStats, modelUsage, dailyUsage;
+    
+    if (columnNames.includes('tokens') && columnNames.includes('cost') && columnNames.includes('model')) {
+      // New schema - local development
+      overallStats = db.prepare(`
+        SELECT 
+          COALESCE(SUM(tokens), 0) as totalTokens,
+          COALESCE(SUM(cost), 0) as totalCost,
+          COUNT(*) as totalUsageRecords
+        FROM token_usage 
+        WHERE user_id = ?
+      `).get(req.user.userId);
+      
+      modelUsage = db.prepare(`
+        SELECT 
+          COALESCE(model, 'Unknown') as model,
+          COALESCE(SUM(tokens), 0) as tokens,
+          COUNT(*) as conversations,
+          COALESCE(SUM(cost), 0) as cost
+        FROM token_usage 
+        WHERE user_id = ?
+        GROUP BY model
+        ORDER BY tokens DESC
+        LIMIT 10
+      `).all(req.user.userId);
+      
+      dailyUsage = db.prepare(`
+        SELECT 
+          DATE(created_at) as date,
+          COALESCE(SUM(tokens), 0) as tokens,
+          COALESCE(SUM(cost), 0) as cost
+        FROM token_usage 
+        WHERE user_id = ? AND created_at >= date('now', '-30 days')
+        GROUP BY DATE(created_at)
+        ORDER BY date DESC
+        LIMIT 30
+      `).all(req.user.userId);
+      
+    } else if (columnNames.includes('total_tokens') && columnNames.includes('model_name')) {
+      // Production schema - Railway database
+      overallStats = db.prepare(`
+        SELECT 
+          COALESCE(SUM(total_tokens), 0) as totalTokens,
+          COALESCE(SUM(total_tokens), 0) * 0.00001 as totalCost,
+          COUNT(*) as totalUsageRecords
+        FROM token_usage 
+        WHERE user_id = ?
+      `).get(req.user.userId);
+      
+      modelUsage = db.prepare(`
+        SELECT 
+          COALESCE(model_name, 'Unknown') as model,
+          COALESCE(SUM(total_tokens), 0) as tokens,
+          COUNT(*) as conversations,
+          COALESCE(SUM(total_tokens), 0) * 0.00001 as cost
+        FROM token_usage 
+        WHERE user_id = ?
+        GROUP BY model_name
+        ORDER BY tokens DESC
+        LIMIT 10
+      `).all(req.user.userId);
+      
+      dailyUsage = db.prepare(`
+        SELECT 
+          DATE(created_at) as date,
+          COALESCE(SUM(total_tokens), 0) as tokens,
+          COALESCE(SUM(total_tokens), 0) * 0.00001 as cost
+        FROM token_usage 
+        WHERE user_id = ? AND created_at >= date('now', '-30 days')
+        GROUP BY DATE(created_at)
+        ORDER BY date DESC
+        LIMIT 30
+      `).all(req.user.userId);
+    } else {
+      console.error('❌ Unknown database schema in usage stats. Available columns:', columnNames);
+      return res.status(500).json({ error: 'Database schema not recognized' });
+    }
     
     // Total conversations (from conversations table)
     const conversationStats = db.prepare(`
@@ -1663,32 +1756,12 @@ app.get('/api/usage/stats', authenticateToken, (req, res) => {
       WHERE user_id = ?
     `).get(req.user.userId);
     
-    // Model usage breakdown - adapted to existing table structure
-    const modelUsage = db.prepare(`
-      SELECT 
-        COALESCE(model, 'Unknown') as model,
-        COALESCE(SUM(tokens), 0) as tokens,
-        COUNT(*) as conversations,
-        COALESCE(SUM(cost), 0) as cost
-      FROM token_usage 
-      WHERE user_id = ?
-      GROUP BY model
-      ORDER BY tokens DESC
-      LIMIT 10
-    `).all(req.user.userId);
-    
-    // Daily usage for the last 30 days - adapted to existing table structure
-    const dailyUsage = db.prepare(`
-      SELECT 
-        DATE(created_at) as date,
-        COALESCE(SUM(tokens), 0) as tokens,
-        COALESCE(SUM(cost), 0) as cost
-      FROM token_usage 
-      WHERE user_id = ? AND created_at >= date('now', '-30 days')
-      GROUP BY DATE(created_at)
-      ORDER BY date DESC
-      LIMIT 30
-    `).all(req.user.userId);
+    console.log('📈 Usage stats computed:', {
+      totalTokens: overallStats.totalTokens,
+      totalConversations: conversationStats.totalConversations,
+      modelCount: modelUsage.length,
+      dailyRecords: dailyUsage.length
+    });
     
     res.json({
       totalTokens: overallStats.totalTokens || 0,
@@ -1710,6 +1783,7 @@ app.get('/api/usage/stats', authenticateToken, (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching usage stats:', error);
+    console.error('Error details:', error.message);
     res.status(500).json({ error: 'Failed to fetch usage statistics' });
   }
 });
@@ -1724,19 +1798,46 @@ app.post('/api/usage/track', authenticateToken, (req, res) => {
     const finalCost = cost || (finalTokens * 0.00001); // Estimate cost if not provided
     const finalModel = model || model_name || 'Unknown';
     
-    // Insert usage tracking record - adapted to existing table structure
-    db.prepare(
-      'INSERT INTO token_usage (user_id, tokens, cost, model) VALUES (?, ?, ?, ?)'
-    ).run(
-      req.user.userId,
+    console.log('🎯 Frontend tracking request:', {
+      userId: req.user.userId,
       finalTokens,
       finalCost,
-      finalModel
-    );
+      finalModel,
+      originalData: req.body
+    });
     
+    // Check database schema and insert accordingly
+    const tableInfo = db.prepare("PRAGMA table_info(token_usage)").all();
+    const columnNames = tableInfo.map(col => col.name);
+    console.log('📊 Track endpoint - table columns:', columnNames);
+    
+    if (columnNames.includes('tokens') && columnNames.includes('cost') && columnNames.includes('model')) {
+      // New schema - local development
+      db.prepare(
+        'INSERT INTO token_usage (user_id, tokens, cost, model) VALUES (?, ?, ?, ?)'
+      ).run(req.user.userId, finalTokens, finalCost, finalModel);
+    } else if (columnNames.includes('total_tokens') && columnNames.includes('model_name')) {
+      // Production schema - Railway database
+      db.prepare(
+        'INSERT INTO token_usage (user_id, model_id, model_name, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(
+        req.user.userId,
+        model_id || finalModel,
+        finalModel,
+        prompt_tokens || Math.floor(finalTokens * 0.4) || 0,
+        completion_tokens || Math.floor(finalTokens * 0.6) || 0,
+        finalTokens
+      );
+    } else {
+      console.error('❌ Unknown database schema in track endpoint. Available columns:', columnNames);
+      return res.status(500).json({ error: 'Database schema not recognized' });
+    }
+    
+    console.log(`✅ Frontend tracking successful: ${finalTokens} tokens for ${finalModel} (user ${req.user.userId})`);
     res.json({ success: true, message: 'Usage tracked successfully' });
   } catch (error) {
     console.error('Error tracking usage:', error);
+    console.error('Error details:', error.message);
     res.status(500).json({ error: 'Failed to track usage' });
   }
 });
