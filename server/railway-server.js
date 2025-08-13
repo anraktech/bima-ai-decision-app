@@ -46,22 +46,51 @@ const dbPath = join(dbDir, 'database.db');
 // Create directory if it doesn't exist
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
+  console.log('Created database directory:', dbDir);
 }
 
-console.log('Using database at:', dbPath);
-const db = new Database(dbPath);
+console.log('Database configuration:');
+console.log('- Environment:', process.env.NODE_ENV || 'development');
+console.log('- Volume mount path:', process.env.RAILWAY_VOLUME_MOUNT_PATH || 'NOT SET');
+console.log('- Database directory:', dbDir);
+console.log('- Database file path:', dbPath);
+console.log('- Database file exists:', fs.existsSync(dbPath));
 
-// Create tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    name TEXT NOT NULL,
-    subscription_tier TEXT DEFAULT 'explore',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`);
+// Initialize database with better error handling
+let db;
+try {
+  db = new Database(dbPath);
+  console.log('✅ Database connection established');
+  
+  // Test database write/read
+  const testQuery = db.prepare('SELECT 1 as test').get();
+  console.log('✅ Database test query successful:', testQuery);
+} catch (error) {
+  console.error('❌ Database initialization failed:', error);
+  process.exit(1);
+}
+
+// Create tables with better error handling
+try {
+  console.log('Creating database tables...');
+  
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      subscription_tier TEXT DEFAULT 'explore',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  
+  // Check if users exist
+  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get();
+  console.log('✅ Users table ready, current users:', userCount.count);
+} catch (error) {
+  console.error('❌ Failed to create users table:', error);
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS models (
