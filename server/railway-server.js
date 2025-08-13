@@ -415,10 +415,27 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
         };
       } catch (error) {
         console.error('Google API error:', error);
-        return res.status(500).json({ 
-          error: 'Failed to generate response from Google',
-          details: error.message || 'Unknown error'
-        });
+        
+        // Handle specific Google API error types
+        if (error.message && error.message.includes('429 Too Many Requests')) {
+          return res.status(429).json({ 
+            error: 'Google Gemini API quota exceeded. Free tier limits reached.',
+            details: 'Daily/minute request limits or token limits exceeded. Try again later or upgrade your Google API plan.',
+            provider: 'Google'
+          });
+        } else if (error.message && error.message.includes('403 Forbidden')) {
+          return res.status(403).json({ 
+            error: 'Google Gemini API access forbidden. Check your API key.',
+            details: error.message || 'API key may be invalid or restricted',
+            provider: 'Google'
+          });
+        } else {
+          return res.status(500).json({ 
+            error: 'Failed to generate response from Google',
+            details: error.message || 'Unknown error',
+            provider: 'Google'
+          });
+        }
       }
     } else if ((model.includes('llama') || model.includes('gemma')) && groq) {
       // Real Groq API call
@@ -451,10 +468,27 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
         response = xaiResponse;
       } catch (error) {
         console.error('xAI API error:', error);
-        return res.status(500).json({ 
-          error: 'Failed to generate response from xAI',
-          details: error.message || 'Unknown error'
-        });
+        
+        // Handle specific xAI API error types
+        if (error.status === 404) {
+          return res.status(404).json({ 
+            error: 'xAI model not available. Model may not exist or you may not have access.',
+            details: `The model "${model}" is not available. Try using grok-2-1212 or grok-2-vision-1212 instead.`,
+            provider: 'xAI'
+          });
+        } else if (error.status === 401) {
+          return res.status(401).json({ 
+            error: 'xAI API key is invalid or expired.',
+            details: error.message || 'Check your xAI API key configuration',
+            provider: 'xAI'
+          });
+        } else {
+          return res.status(500).json({ 
+            error: 'Failed to generate response from xAI',
+            details: error.message || 'Unknown error',
+            provider: 'xAI'
+          });
+        }
       }
     } else if (model.includes('deepseek') && deepseek) {
       // Real Deepseek API call (OpenAI-compatible)
@@ -565,7 +599,7 @@ app.get('/api/models/providers', async (req, res) => {
         name: 'xAI (Grok)',
         models: [
           { id: 'grok-2-1212', name: 'Grok 2 (Latest)', provider: 'xai', requiresKey: true, context: 131072 },
-          { id: 'grok-beta', name: 'Grok Beta', provider: 'xai', requiresKey: true, context: 131072 }
+          { id: 'grok-2-vision-1212', name: 'Grok 2 Vision (Latest)', provider: 'xai', requiresKey: true, context: 131072 }
         ]
       },
       {
