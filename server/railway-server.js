@@ -186,6 +186,22 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Debug endpoint to check environment variables
+app.get('/debug/env', (req, res) => {
+  res.json({
+    hasOpenAI: !!process.env.OPENAI_API_KEY,
+    hasAnthropic: !!process.env.ANTHROPIC_API_KEY,
+    hasGoogle: !!process.env.GOOGLE_API_KEY,
+    hasGroq: !!process.env.GROQ_API_KEY,
+    hasXAI: !!process.env.XAI_API_KEY,
+    hasDeepseek: !!process.env.DEEPSEEK_API_KEY,
+    hasOpenRouter: !!process.env.OPENROUTER_API_KEY,
+    openrouterKeyPrefix: process.env.OPENROUTER_API_KEY ? process.env.OPENROUTER_API_KEY.substring(0, 12) + '...' : 'NOT_SET',
+    volumeMount: process.env.RAILWAY_VOLUME_MOUNT_PATH || 'NOT_SET',
+    nodeEnv: process.env.NODE_ENV || 'NOT_SET'
+  });
+});
+
 // Auth routes
 app.post('/api/auth/signup', async (req, res) => {
   try {
