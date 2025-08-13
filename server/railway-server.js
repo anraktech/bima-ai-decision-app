@@ -331,6 +331,27 @@ app.post('/api/models', authenticateToken, (req, res) => {
   }
 });
 
+// Get model documents content endpoint
+app.get('/api/models/:modelId/documents/content', authenticateToken, (req, res) => {
+  try {
+    const { modelId } = req.params;
+    console.log('📄 Fetching documents for model:', modelId, 'by user:', req.user.userId);
+    
+    // Verify the model belongs to the user
+    const model = db.prepare('SELECT * FROM models WHERE id = ? AND user_id = ?').get(modelId, req.user.userId);
+    if (!model) {
+      return res.status(404).json({ error: 'Model not found' });
+    }
+    
+    // For now, return empty documents array since the documents table/storage isn't implemented yet
+    // This prevents the 404 errors and allows custom models to work
+    res.json([]);
+  } catch (error) {
+    console.error('Error fetching model documents:', error);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
 // Conversations endpoint
 app.post('/api/conversations', authenticateToken, (req, res) => {
   try {

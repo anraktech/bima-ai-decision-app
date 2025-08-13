@@ -35,8 +35,8 @@ export const useCustomModels = () => {
           isCustom: true,
           isShared: model.is_imported,
           baseModel: model.base_model,
-          systemInstructions: model.system_instructions,
-          openingStatement: model.opening_statement
+          systemInstructions: model.system_prompt || model.system_instructions,
+          openingStatement: model.greeting_message || model.opening_statement
         }));
         setCustomModels(models);
       }
