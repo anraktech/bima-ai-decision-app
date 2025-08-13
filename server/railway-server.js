@@ -18,10 +18,14 @@ const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
 
 // Database setup - use persistent volume in production
-const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH 
-  ? join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'database.db')
-  : join(__dirname, 'database.db');
-  
+const dbDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || __dirname;
+const dbPath = join(dbDir, 'database.db');
+
+// Create directory if it doesn't exist
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
 console.log('Using database at:', dbPath);
 const db = new Database(dbPath);
 
