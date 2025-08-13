@@ -1599,10 +1599,25 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Model not supported or API key not configured' });
     }
     
+    // Debug logging for response structure
+    console.log('🔍 Chat completion response structure:', {
+      hasUsage: !!response.usage,
+      responseKeys: Object.keys(response || {}),
+      usageData: response.usage || 'No usage data'
+    });
+    
     // Track token usage - adapted to existing table structure
     if (response.usage) {
       const totalTokens = response.usage.total_tokens || (response.usage.prompt_tokens + response.usage.completion_tokens) || 0;
       const cost = totalTokens * 0.00001; // Estimate cost
+      
+      console.log('💰 About to track usage:', {
+        userId: req.user.userId,
+        totalTokens,
+        cost,
+        model,
+        rawUsage: response.usage
+      });
       
       try {
         db.prepare(
@@ -1617,6 +1632,8 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
       } catch (error) {
         console.error('❌ Failed to track usage in chat/completions:', error);
       }
+    } else {
+      console.warn('⚠️ No usage data in AI response - tracking skipped');
     }
     
     res.json(response);

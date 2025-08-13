@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { API_URL } from '../config/api';
 import { generateOpenAIResponse, OPENAI_MODELS } from '../services/openai';
 import { generateAnthropicResponse, ANTHROPIC_MODELS } from '../services/anthropic';
 import { generateGoogleResponse, GOOGLE_MODELS } from '../services/google';
@@ -630,8 +631,7 @@ export function MultiplayerArena() {
         if (authToken) {
           const trackUsage = async (retries = 3) => {
             try {
-              const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-              const trackResponse = await fetch(`${apiUrl}/api/usage/track`, {
+              const trackResponse = await fetch(`${API_URL}/api/usage/track`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

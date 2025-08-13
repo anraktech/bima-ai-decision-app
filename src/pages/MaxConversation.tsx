@@ -31,6 +31,7 @@ import {
   MessageCircle
 } from 'lucide-react';
 import { formatTimestamp } from '../utils';
+import { API_URL } from '../config/api';
 import type { AIModel } from '../types';
 
 interface ModelConfig {
@@ -252,8 +253,7 @@ export function MaxConversation() {
         if (authToken) {
           const trackUsage = async (retries = 3) => {
             try {
-              const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-              const trackResponse = await fetch(`${apiUrl}/api/usage/track`, {
+              const trackResponse = await fetch(`${API_URL}/api/usage/track`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
