@@ -1620,21 +1620,70 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
   }
 });
 
-// Usage stats endpoint
+// Usage stats endpoint - Comprehensive analytics
 app.get('/api/usage/stats', authenticateToken, (req, res) => {
   try {
-    const stats = db.prepare(`
+    // Overall stats - adapted to existing table structure
+    const overallStats = db.prepare(`
       SELECT 
-        COALESCE(SUM(total_tokens), 0) as totalTokens,
-        COUNT(*) as totalConversations
+        COALESCE(SUM(tokens), 0) as totalTokens,
+        COALESCE(SUM(cost), 0) as totalCost,
+        COUNT(*) as totalUsageRecords
       FROM token_usage 
       WHERE user_id = ?
     `).get(req.user.userId);
     
+    // Total conversations (from conversations table)
+    const conversationStats = db.prepare(`
+      SELECT COUNT(*) as totalConversations
+      FROM conversations 
+      WHERE user_id = ?
+    `).get(req.user.userId);
+    
+    // Model usage breakdown - adapted to existing table structure
+    const modelUsage = db.prepare(`
+      SELECT 
+        COALESCE(model, 'Unknown') as model,
+        COALESCE(SUM(tokens), 0) as tokens,
+        COUNT(*) as conversations,
+        COALESCE(SUM(cost), 0) as cost
+      FROM token_usage 
+      WHERE user_id = ?
+      GROUP BY model
+      ORDER BY tokens DESC
+      LIMIT 10
+    `).all(req.user.userId);
+    
+    // Daily usage for the last 30 days - adapted to existing table structure
+    const dailyUsage = db.prepare(`
+      SELECT 
+        DATE(created_at) as date,
+        COALESCE(SUM(tokens), 0) as tokens,
+        COALESCE(SUM(cost), 0) as cost
+      FROM token_usage 
+      WHERE user_id = ? AND created_at >= date('now', '-30 days')
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+      LIMIT 30
+    `).all(req.user.userId);
+    
     res.json({
-      totalTokens: stats.totalTokens || 0,
-      totalConversations: stats.totalConversations || 0,
-      dailyUsage: []
+      totalTokens: overallStats.totalTokens || 0,
+      inputTokens: Math.round((overallStats.totalTokens || 0) * 0.4), // Estimate 40% input
+      outputTokens: Math.round((overallStats.totalTokens || 0) * 0.6), // Estimate 60% output
+      totalConversations: conversationStats.totalConversations || 0,
+      totalCost: overallStats.totalCost || 0,
+      modelUsage: modelUsage.map(model => ({
+        model: model.model || 'Unknown',
+        tokens: model.tokens || 0,
+        conversations: model.conversations || 0,
+        cost: model.cost || 0
+      })),
+      dailyUsage: dailyUsage.map(day => ({
+        date: day.date,
+        tokens: day.tokens || 0,
+        cost: day.cost || 0
+      }))
     });
   } catch (error) {
     console.error('Error fetching usage stats:', error);
@@ -1645,18 +1694,21 @@ app.get('/api/usage/stats', authenticateToken, (req, res) => {
 // Track usage endpoint  
 app.post('/api/usage/track', authenticateToken, (req, res) => {
   try {
-    const { model_id, model_name, prompt_tokens, completion_tokens, total_tokens } = req.body;
+    const { model_id, model_name, prompt_tokens, completion_tokens, total_tokens, tokens, cost, model } = req.body;
     
-    // Insert usage tracking record
+    // Calculate values based on input format
+    const finalTokens = tokens || total_tokens || (prompt_tokens + completion_tokens) || 0;
+    const finalCost = cost || (finalTokens * 0.00001); // Estimate cost if not provided
+    const finalModel = model || model_name || 'Unknown';
+    
+    // Insert usage tracking record - adapted to existing table structure
     db.prepare(
-      'INSERT INTO token_usage (user_id, model_id, model_name, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO token_usage (user_id, tokens, cost, model) VALUES (?, ?, ?, ?)'
     ).run(
       req.user.userId,
-      model_id,
-      model_name,
-      prompt_tokens || 0,
-      completion_tokens || 0, 
-      total_tokens || 0
+      finalTokens,
+      finalCost,
+      finalModel
     );
     
     res.json({ success: true, message: 'Usage tracked successfully' });

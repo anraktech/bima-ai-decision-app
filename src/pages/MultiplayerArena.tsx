@@ -538,6 +538,7 @@ export function MultiplayerArena() {
       const fullSystemInstructions = systemInstructions + `\n\n${defaultSystemInstruction}`;
       
       let responseContent: string;
+      let responseUsage: any = null;
       const provider = activeModel?.provider || '';
       const modelId = typeof activeModel.id === 'string' ? activeModel.id : String(activeModel.id);
       
@@ -551,6 +552,7 @@ export function MultiplayerArena() {
           messageHistory
         );
         responseContent = response.content;
+        responseUsage = response.usage;
       } else if (provider === 'anthropic') {
         const response = await generateAnthropicResponse(
           modelId,
@@ -558,6 +560,7 @@ export function MultiplayerArena() {
           messageHistory
         );
         responseContent = response.content;
+        responseUsage = response.usage;
       } else if (provider === 'google') {
         const response = await generateGoogleResponse(
           modelId,
@@ -565,6 +568,7 @@ export function MultiplayerArena() {
           messageHistory
         );
         responseContent = response.content;
+        responseUsage = response.usage;
       } else if (provider === 'groq') {
         const response = await generateGroqResponse(
           modelId,
@@ -572,6 +576,7 @@ export function MultiplayerArena() {
           messageHistory
         );
         responseContent = response.content;
+        responseUsage = response.usage;
       } else if (provider === 'xai') {
         const response = await generateXAIResponse(
           modelId,
@@ -579,6 +584,7 @@ export function MultiplayerArena() {
           messageHistory
         );
         responseContent = response.content;
+        responseUsage = response.usage;
       // Perplexity case removed - models not working properly
       } else if (provider === 'deepseek') {
         const response = await generateDeepseekResponse(
@@ -587,6 +593,7 @@ export function MultiplayerArena() {
           messageHistory
         );
         responseContent = response.content;
+        responseUsage = response.usage;
       } else if (provider === 'openrouter') {
         const response = await generateOpenRouterResponse(
           modelId,
@@ -594,6 +601,7 @@ export function MultiplayerArena() {
           messageHistory
         );
         responseContent = response.content;
+        responseUsage = response.usage;
       } else {
         throw new Error(`Unsupported provider: ${provider}`);
       }
@@ -609,6 +617,32 @@ export function MultiplayerArena() {
       
       // Add to local messages
       setArenaMessages(prev => [...prev, aiMessage]);
+      
+      // Track token usage
+      if (responseUsage && user) {
+        const authToken = localStorage.getItem('token');
+        if (authToken) {
+          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/usage/track`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+              model_id: modelId,
+              model_name: activeModel?.name || modelId,
+              prompt_tokens: responseUsage.prompt_tokens,
+              completion_tokens: responseUsage.completion_tokens,
+              total_tokens: responseUsage.total_tokens,
+              tokens: responseUsage.total_tokens,
+              cost: responseUsage.total_tokens * 0.00001,
+              model: activeModel?.name || modelId
+            })
+          }).catch(error => {
+            console.error('Failed to track usage in Multiplayer Arena:', error);
+          });
+        }
+      }
       
       // Update arena state
       setArenaState(prev => {

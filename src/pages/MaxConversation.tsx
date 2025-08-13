@@ -240,6 +240,32 @@ export function MaxConversation() {
       setMessageCount(prev => prev + 1);
       setCurrentModelIndex((currentModelIndex + 1) % activeModels.length);
       
+      // Track token usage
+      if (response.usage && user) {
+        const authToken = localStorage.getItem('token');
+        if (authToken) {
+          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/usage/track`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+              model_id: currentModel.model.id,
+              model_name: currentModel.model.name,
+              prompt_tokens: response.usage.prompt_tokens,
+              completion_tokens: response.usage.completion_tokens,
+              total_tokens: response.usage.total_tokens,
+              tokens: response.usage.total_tokens,
+              cost: response.usage.total_tokens * 0.00001,
+              model: currentModel.model.name
+            })
+          }).catch(error => {
+            console.error('Failed to track usage in MAX mode:', error);
+          });
+        }
+      }
+      
     } catch (error) {
       console.error('Error generating response:', error);
       

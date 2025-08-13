@@ -411,12 +411,15 @@ export const useAppState = () => {
                 'Authorization': `Bearer ${authToken}`
               },
               body: JSON.stringify({
-                modelId: activePanel.model?.id,
-                modelName: activePanel.model?.displayName || activePanel.model?.id,
-                promptTokens: tokenUsage.prompt_tokens,
-                completionTokens: tokenUsage.completion_tokens,
-                totalTokens: tokenUsage.total_tokens,
-                conversationId: state.conversation.id || undefined
+                model_id: activePanel.model?.id,
+                model_name: activePanel.model?.displayName || activePanel.model?.id,
+                prompt_tokens: tokenUsage.prompt_tokens,
+                completion_tokens: tokenUsage.completion_tokens,
+                total_tokens: tokenUsage.total_tokens,
+                tokens: tokenUsage.total_tokens,
+                cost: tokenUsage.total_tokens * 0.00001,
+                model: activePanel.model?.displayName || activePanel.model?.id,
+                conversation_id: state.conversation.id || undefined
               })
             }).catch(error => {
               console.error('Failed to track usage:', error);
