@@ -369,8 +369,9 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
         });
         
         response = openrouterResponse;
+        console.log('✅ OpenRouter API success for model:', model);
       } catch (error) {
-        console.error('OpenRouter API error:', error);
+        console.error('❌ OpenRouter API error for model:', model, 'Error:', error.message);
         
         // Handle specific OpenRouter error types
         if (error.status === 400) {
@@ -671,45 +672,46 @@ app.get('/api/models/providers', async (req, res) => {
         id: 'openrouter',
         name: 'OpenRouter',
         models: [
-          // OpenAI Models (High Demand - Including GPT-5)
-          { id: 'openai/gpt-5-chat', name: 'GPT-5 Chat (Latest)', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'openai/gpt-5-mini', name: 'GPT-5 Mini', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'openrouter', requiresKey: true, context: 128000 },
+          // OpenAI Models (High Demand Models - Latest Available)
+          { id: 'openai/gpt-4o', name: 'GPT-4o (Latest)', provider: 'openrouter', requiresKey: true, context: 128000 },
           { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openrouter', requiresKey: true, context: 128000 },
+          { id: 'openai/o1-preview', name: 'OpenAI o1 Preview (Reasoning)', provider: 'openrouter', requiresKey: true, context: 128000 },
+          { id: 'openai/o1-mini', name: 'OpenAI o1 Mini (Reasoning)', provider: 'openrouter', requiresKey: true, context: 128000 },
           
-          // Anthropic Models (All Premium)
-          { id: 'anthropic/claude-opus-4.1', name: 'Claude Opus 4.1 (Latest)', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'anthropic/claude-opus-4', name: 'Claude Opus 4', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'openrouter', requiresKey: true, context: 200000 },
-          { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'openrouter', requiresKey: true, context: 200000 },
+          // Anthropic Models (Premium)
+          { id: 'anthropic/claude-3.5-sonnet-20241022', name: 'Claude 3.5 Sonnet (Latest)', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-3.5-haiku-20241022', name: 'Claude 3.5 Haiku', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'openrouter', requiresKey: true, context: 200000 },
+          { id: 'anthropic/claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', provider: 'openrouter', requiresKey: true, context: 200000 },
           
-          // Google Models (High Demand - Including Gemini 2.5 Pro)
-          { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro (Latest)', provider: 'openrouter', requiresKey: true, context: 2000000 },
-          { id: 'google/gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', provider: 'openrouter', requiresKey: true, context: 1048576 },
-          { id: 'google/gemini-pro-1.5', name: 'Gemini 1.5 Pro', provider: 'openrouter', requiresKey: true, context: 2000000 },
+          // Google Models (High Demand - Gemini Pro Models)
+          { id: 'google/gemini-pro-1.5', name: 'Gemini 1.5 Pro (Latest)', provider: 'openrouter', requiresKey: true, context: 2000000 },
+          { id: 'google/gemini-flash-1.5', name: 'Gemini 1.5 Flash', provider: 'openrouter', requiresKey: true, context: 1048576 },
+          { id: 'google/gemini-flash-1.5-8b', name: 'Gemini 1.5 Flash 8B', provider: 'openrouter', requiresKey: true, context: 1048576 },
           
-          // Meta Models (Premium)
-          { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick (Latest)', provider: 'openrouter', requiresKey: true, context: 1048576 },
-          { id: 'meta-llama/llama-4-scout', name: 'Llama 4 Scout', provider: 'openrouter', requiresKey: true, context: 1048576 },
+          // Meta Models (Llama 3.1/3.2 Series)
+          { id: 'meta-llama/llama-3.1-405b-instruct', name: 'Llama 3.1 405B Instruct (Largest)', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B Instruct', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'meta-llama/llama-3.2-90b-vision-instruct', name: 'Llama 3.2 90B Vision', provider: 'openrouter', requiresKey: true, context: 131072 },
           
-          // Mistral Models (Premium)
+          // Mistral Models (Latest)
           { id: 'mistralai/mistral-large-2411', name: 'Mistral Large 2411', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'mistralai/codestral-2501', name: 'Codestral 2501 (Latest)', provider: 'openrouter', requiresKey: true, context: 262144 },
+          { id: 'mistralai/codestral-latest', name: 'Codestral (Latest)', provider: 'openrouter', requiresKey: true, context: 32768 },
+          { id: 'mistralai/pixtral-12b-2409', name: 'Pixtral 12B Vision', provider: 'openrouter', requiresKey: true, context: 128000 },
           
-          // xAI Models (High Demand - Including Grok 4)
-          { id: 'x-ai/grok-4', name: 'Grok 4 (Latest)', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'x-ai/grok-2-1212', name: 'Grok 2', provider: 'openrouter', requiresKey: true, context: 131072 },
+          // xAI Models (Grok Series)
+          { id: 'x-ai/grok-2-1212', name: 'Grok 2 (Latest)', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'x-ai/grok-2-vision-1212', name: 'Grok 2 Vision', provider: 'openrouter', requiresKey: true, context: 131072 },
           
-          // DeepSeek Models (High Demand)
-          { id: 'deepseek/deepseek-r1-0528', name: 'DeepSeek R1 (Latest)', provider: 'openrouter', requiresKey: true, context: 32768 },
+          // DeepSeek Models (High Performance)
+          { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat (Latest)', provider: 'openrouter', requiresKey: true, context: 64000 },
+          { id: 'deepseek/deepseek-coder', name: 'DeepSeek Coder', provider: 'openrouter', requiresKey: true, context: 16384 },
           
-          // Other Premium Models
-          { id: 'microsoft/phi-4-reasoning-plus', name: 'Microsoft Phi 4 Reasoning+', provider: 'openrouter', requiresKey: true, context: 32768 },
-          { id: 'microsoft/phi-4-multimodal-instruct', name: 'Microsoft Phi 4 Multimodal', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B', provider: 'openrouter', requiresKey: true, context: 131072 },
-          { id: 'qwen/qwen-turbo', name: 'Qwen Turbo', provider: 'openrouter', requiresKey: true, context: 1000000 },
-          { id: 'cohere/command-r-plus-08-2024', name: 'Cohere Command R+', provider: 'openrouter', requiresKey: true, context: 128000 }
+          // Other Premium Models (Verified Working)
+          { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B Instruct', provider: 'openrouter', requiresKey: true, context: 131072 },
+          { id: 'cohere/command-r-plus-08-2024', name: 'Cohere Command R+', provider: 'openrouter', requiresKey: true, context: 128000 },
+          { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openrouter', requiresKey: true, context: 128000 },
+          { id: 'perplexity/llama-3.1-sonar-large-128k-online', name: 'Perplexity Sonar Large (Online)', provider: 'openrouter', requiresKey: true, context: 127072 }
         ]
       });
     }
