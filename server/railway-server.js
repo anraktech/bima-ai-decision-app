@@ -11,6 +11,7 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
+import multer from 'multer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -132,6 +133,23 @@ db.exec(`
   )
 `);
 
+// Document storage tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    model_id INTEGER NOT NULL,
+    original_name TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    file_size INTEGER NOT NULL,
+    content TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (model_id) REFERENCES models(id)
+  )
+`);
+
 // CORS configuration for production
 app.use(cors({
   origin: function (origin, callback) {
@@ -162,6 +180,39 @@ app.options('*', (req, res) => {
 });
 
 app.use(express.json());
+
+// Multer configuration for file uploads
+const storage = multer.memoryStorage(); // Store files in memory for processing
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/rtf', 'text/rtf'];
+    const allowedExtensions = ['pdf', 'docx', 'rtf'];
+    const extension = file.originalname.split('.').pop()?.toLowerCase();
+    
+    if (allowedTypes.includes(file.mimetype) || (extension && allowedExtensions.includes(extension))) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only PDF, DOCX, and RTF files are allowed.'));
+    }
+  }
+});
+
+// Simple text extraction function (basic implementation)
+const extractText = async (buffer, filename) => {
+  const extension = filename.split('.').pop()?.toLowerCase();
+  
+  if (extension === 'txt') {
+    return buffer.toString('utf-8');
+  }
+  
+  // For PDF, DOCX, RTF - return filename as placeholder
+  // In production, you'd use libraries like pdf-parse, mammoth, etc.
+  return `Content from ${filename}\n\n[Document processing not fully implemented yet. This is a placeholder for the document content.]`;
+};
 
 // Auth middleware
 const authenticateToken = (req, res, next) => {
@@ -208,6 +259,82 @@ app.get('/api/debug/env', (req, res) => {
       nodeEnv: process.env.NODE_ENV || 'NOT_SET'
     }
   });
+});
+
+// Database admin endpoints for Railway database viewing
+app.get('/api/admin/tables', (req, res) => {
+  try {
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all();
+    res.json({
+      success: true,
+      tables: tables.map(t => t.name),
+      database_path: dbPath,
+      instructions: {
+        railway_access: "Go to Railway Dashboard > Your Project > Data tab to access the database browser",
+        api_endpoints: [
+          "GET /api/admin/tables - List all tables",
+          "GET /api/admin/table/:name - View table data",
+          "GET /api/admin/stats - Database statistics"
+        ]
+      }
+    });
+  } catch (error) {
+    console.error('Admin tables error:', error);
+    res.status(500).json({ error: 'Failed to fetch tables' });
+  }
+});
+
+app.get('/api/admin/table/:tableName', (req, res) => {
+  try {
+    const { tableName } = req.params;
+    const limit = parseInt(req.query.limit as string) || 100;
+    
+    // Validate table name to prevent SQL injection
+    const validTables = ['users', 'models', 'documents', 'token_usage', 'conversations'];
+    if (!validTables.includes(tableName)) {
+      return res.status(400).json({ error: 'Invalid table name' });
+    }
+    
+    const data = db.prepare(`SELECT * FROM ${tableName} ORDER BY id DESC LIMIT ?`).all(limit);
+    const count = db.prepare(`SELECT COUNT(*) as count FROM ${tableName}`).get();
+    
+    res.json({
+      success: true,
+      table: tableName,
+      count: count.count,
+      limit: limit,
+      data: data
+    });
+  } catch (error) {
+    console.error('Admin table error:', error);
+    res.status(500).json({ error: 'Failed to fetch table data' });
+  }
+});
+
+app.get('/api/admin/stats', (req, res) => {
+  try {
+    const stats = {
+      users: db.prepare('SELECT COUNT(*) as count FROM users').get(),
+      models: db.prepare('SELECT COUNT(*) as count FROM models').get(),
+      documents: db.prepare('SELECT COUNT(*) as count FROM documents').get(),
+      conversations: db.prepare('SELECT COUNT(*) as count FROM conversations').get(),
+      token_usage: db.prepare('SELECT COUNT(*) as count FROM token_usage').get(),
+      recent_activity: {
+        recent_users: db.prepare('SELECT email, created_at FROM users ORDER BY created_at DESC LIMIT 5').all(),
+        recent_models: db.prepare('SELECT name, created_at FROM models ORDER BY created_at DESC LIMIT 5').all(),
+        recent_documents: db.prepare('SELECT original_name, created_at FROM documents ORDER BY created_at DESC LIMIT 5').all()
+      }
+    };
+    
+    res.json({
+      success: true,
+      database_stats: stats,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Admin stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch database statistics' });
+  }
 });
 
 // Auth routes
@@ -331,11 +458,13 @@ app.post('/api/models', authenticateToken, (req, res) => {
   }
 });
 
-// Get model documents content endpoint
-app.get('/api/models/:modelId/documents/content', authenticateToken, (req, res) => {
+// Document upload endpoint  
+app.post('/api/models/:modelId/documents', authenticateToken, upload.array('documents', 3), async (req, res) => {
   try {
     const { modelId } = req.params;
-    console.log('📄 Fetching documents for model:', modelId, 'by user:', req.user.userId);
+    const files = req.files as Express.Multer.File[];
+    
+    console.log('📄 Document upload for model:', modelId, 'Files:', files?.length || 0);
     
     // Verify the model belongs to the user
     const model = db.prepare('SELECT * FROM models WHERE id = ? AND user_id = ?').get(modelId, req.user.userId);
@@ -343,9 +472,88 @@ app.get('/api/models/:modelId/documents/content', authenticateToken, (req, res) 
       return res.status(404).json({ error: 'Model not found' });
     }
     
-    // For now, return empty documents array since the documents table/storage isn't implemented yet
-    // This prevents the 404 errors and allows custom models to work
-    res.json([]);
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+    
+    const results = [];
+    
+    for (const file of files) {
+      try {
+        // Extract text content from the file
+        const content = await extractText(file.buffer, file.originalname);
+        
+        // Save document to database
+        const result = db.prepare(`
+          INSERT INTO documents (user_id, model_id, original_name, filename, file_type, file_size, content)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          req.user.userId,
+          modelId,
+          file.originalname,
+          `${Date.now()}-${file.originalname}`, // Unique filename
+          file.mimetype,
+          file.size,
+          content
+        );
+        
+        results.push({
+          id: result.lastInsertRowid,
+          original_name: file.originalname,
+          file_size: file.size,
+          processed: true
+        });
+        
+        console.log('✅ Processed document:', file.originalname);
+      } catch (error) {
+        console.error('❌ Error processing file:', file.originalname, error);
+        results.push({
+          original_name: file.originalname,
+          error: 'Failed to process file'
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Successfully uploaded ${results.filter(r => r.id).length} of ${files.length} documents`,
+      documents: results
+    });
+  } catch (error) {
+    console.error('Error uploading documents:', error);
+    res.status(500).json({ error: 'Failed to upload documents' });
+  }
+});
+
+// Get model documents content endpoint
+app.get('/api/models/:modelId/documents/content', authenticateToken, (req, res) => {
+  try {
+    const { modelId } = req.params;
+    console.log('📄 Fetching documents for model:', modelId, 'by user:', req.user.userId);
+    
+    // Verify the model belongs to the user (or is a shared/imported model)
+    const model = db.prepare('SELECT * FROM models WHERE id = ?').get(modelId);
+    if (!model) {
+      return res.status(404).json({ error: 'Model not found' });
+    }
+    
+    // Check if user owns the model OR if it's a shared model they have access to
+    const hasAccess = model.user_id === req.user.userId || model.is_shared;
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    // Fetch documents associated with this model
+    const documents = db.prepare(`
+      SELECT id, original_name, file_type, file_size, content, created_at
+      FROM documents 
+      WHERE model_id = ?
+      ORDER BY created_at ASC
+    `).all(modelId);
+    
+    console.log(`📄 Found ${documents.length} documents for model ${modelId}`);
+    
+    res.json(documents);
   } catch (error) {
     console.error('Error fetching model documents:', error);
     res.status(500).json({ error: 'Failed to fetch documents' });
