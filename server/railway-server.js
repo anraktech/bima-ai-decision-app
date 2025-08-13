@@ -306,16 +306,22 @@ app.get('/api/models', authenticateToken, (req, res) => {
 app.post('/api/models', authenticateToken, (req, res) => {
   try {
     console.log('📝 Custom model creation request:', JSON.stringify(req.body, null, 2));
-    const { name, base_model, system_prompt, greeting_message } = req.body;
+    const { name, baseModel, base_model, systemInstructions, system_prompt, openingStatement, greeting_message } = req.body;
     
-    if (!name || !base_model) {
-      console.log('❌ Missing required fields - name:', !!name, 'base_model:', !!base_model);
+    // Support both camelCase and snake_case field names
+    const modelName = name;
+    const modelBaseModel = baseModel || base_model;
+    const modelSystemPrompt = systemInstructions || system_prompt;
+    const modelGreetingMessage = openingStatement || greeting_message;
+    
+    if (!modelName || !modelBaseModel) {
+      console.log('❌ Missing required fields - name:', !!modelName, 'baseModel:', !!modelBaseModel);
       return res.status(400).json({ error: 'Name and base model are required' });
     }
     
     const result = db.prepare(
       'INSERT INTO models (user_id, name, base_model, system_prompt, greeting_message) VALUES (?, ?, ?, ?, ?)'
-    ).run(req.user.userId, name, base_model, system_prompt || '', greeting_message || '');
+    ).run(req.user.userId, modelName, modelBaseModel, modelSystemPrompt || '', modelGreetingMessage || '');
     
     const model = db.prepare('SELECT * FROM models WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(model);
