@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Save, Upload, X, FileText, ChevronDown, Sparkles, Bot, Database } from 'lucide-react';
-import { AI_MODELS } from '../types';
+import { Save, Upload, X, FileText, Sparkles, Bot, Database } from 'lucide-react';
+import { BaseModelDropdown } from '../components/BaseModelDropdown';
+import { useModelProviders } from '../hooks/useModelProviders';
+import type { AIModel } from '../types';
 import { API_URL, getApiUrl, getWsUrl } from '../config/api';
 
 
@@ -30,20 +32,21 @@ export const EditModel = () => {
   const { id } = useParams<{ id: string }>();
   const { token } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { allModels } = useModelProviders();
 
   const [modelName, setModelName] = useState('');
-  const [baseModel, setBaseModel] = useState('');
+  const [selectedBaseModel, setSelectedBaseModel] = useState<AIModel | null>(null);
   const [systemInstructions, setSystemInstructions] = useState('');
   const [openingStatement, setOpeningStatement] = useState('');
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingModel, setIsLoadingModel] = useState(true);
   const [error, setError] = useState('');
   const [isImported, setIsImported] = useState(false);
 
-  const openAIModels = AI_MODELS.filter(m => m.id.startsWith('gpt-'));
-  const selectedModel = openAIModels.find(m => m.id === baseModel);
+  const handleModelSelect = (model: AIModel) => {
+    setSelectedBaseModel(model);
+  };
 
   // Load existing model data
   useEffect(() => {
@@ -68,7 +71,25 @@ export const EditModel = () => {
           }
           
           setModelName(model.name);
-          setBaseModel(model.base_model);
+          // Find the exact model from all providers
+          const foundModel = allModels.find(m => m.id === model.base_model);
+          if (foundModel) {
+            setSelectedBaseModel(foundModel);
+          } else {
+            // Fallback: create a basic model object if not found
+            setSelectedBaseModel({ 
+              id: model.base_model, 
+              name: model.base_model,
+              displayName: model.base_model,
+              provider: model.base_model.includes('/') ? 'openrouter' : 
+                        model.base_model.includes('gpt') ? 'openai' : 
+                        model.base_model.includes('claude') ? 'anthropic' : 
+                        model.base_model.includes('gemini') ? 'google' : 
+                        model.base_model.includes('grok') ? 'xai' : 
+                        model.base_model.includes('llama') ? 'groq' : 
+                        model.base_model.includes('deepseek') ? 'deepseek' : 'openai'
+            });
+          }
           setSystemInstructions(model.system_instructions);
           setOpeningStatement(model.opening_statement);
           setDocuments(model.documents || []);
@@ -83,10 +104,10 @@ export const EditModel = () => {
       }
     };
 
-    if (id && token) {
+    if (id && token && allModels.length > 0) {
       loadModel();
     }
-  }, [id, token]);
+  }, [id, token, allModels]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -175,7 +196,7 @@ export const EditModel = () => {
         },
         body: JSON.stringify({
           name: modelName,
-          baseModel,
+          baseModel: selectedBaseModel?.id || '',
           systemInstructions,
           openingStatement
         })
@@ -280,47 +301,10 @@ export const EditModel = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Base Model <span className="text-red-400">*</span>
                 </label>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="w-full px-3 py-3 bg-white border border-gray-300 rounded text-left hover:border-gray-400 transition-colors flex items-center justify-between"
-                  >
-                    <div className="flex items-center space-x-3">
-                      {selectedModel ? (
-                        <>
-                          <div className="w-2.5 h-2.5 rounded-full bg-black"></div>
-                          <span className="font-medium text-black">{selectedModel.displayName}</span>
-                        </>
-                      ) : (
-                        <>
-                          <div className="w-2.5 h-2.5 rounded-full bg-gray-300"></div>
-                          <span className="text-gray-500">Select a base model</span>
-                        </>
-                      )}
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  
-                  {dropdownOpen && (
-                    <div className="absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded overflow-hidden shadow-lg">
-                      {openAIModels.map((model) => (
-                        <button
-                          key={model.id}
-                          type="button"
-                          onClick={() => {
-                            setBaseModel(model.id);
-                            setDropdownOpen(false);
-                          }}
-                          className="w-full px-3 py-3 text-left hover:bg-gray-50 transition-colors flex items-center space-x-3"
-                        >
-                          <div className="w-2 h-2 rounded-full bg-black"></div>
-                          <span className="font-medium text-black">{model.displayName}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <BaseModelDropdown
+                  selectedModel={selectedBaseModel}
+                  onSelectModel={handleModelSelect}
+                />
               </div>
 
               <div>
@@ -437,7 +421,7 @@ export const EditModel = () => {
             </button>
             <button
               type="submit"
-              disabled={isLoading || !modelName || !baseModel || !systemInstructions || !openingStatement}
+              disabled={isLoading || !modelName || !selectedBaseModel || !systemInstructions || !openingStatement}
               className="px-8 py-3 bg-black text-white font-medium rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
             >
               {isLoading ? (
