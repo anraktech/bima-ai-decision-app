@@ -17,8 +17,13 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
 
-// Database setup
-const db = new Database(join(__dirname, 'database.db'));
+// Database setup - use persistent volume in production
+const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH 
+  ? join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'database.db')
+  : join(__dirname, 'database.db');
+  
+console.log('Using database at:', dbPath);
+const db = new Database(dbPath);
 
 // Create tables
 db.exec(`
@@ -224,6 +229,43 @@ app.post('/api/models', authenticateToken, (req, res) => {
   } catch (error) {
     console.error('Error creating model:', error);
     res.status(500).json({ error: 'Failed to create model' });
+  }
+});
+
+// Chat completions endpoint - proxy to AI providers
+app.post('/api/chat/completions', authenticateToken, async (req, res) => {
+  try {
+    const { model, messages, temperature = 0.7, max_tokens = 1000 } = req.body;
+    
+    // Determine provider from model ID
+    let provider = 'openai';
+    if (model.includes('claude')) provider = 'anthropic';
+    if (model.includes('gemini')) provider = 'google';
+    
+    // For now, return a mock response to test
+    // In production, you'd make actual API calls here
+    res.json({
+      id: 'chatcmpl-' + Date.now(),
+      object: 'chat.completion',
+      created: Math.floor(Date.now() / 1000),
+      model: model,
+      choices: [{
+        index: 0,
+        message: {
+          role: 'assistant',
+          content: `This is a test response from ${model}. To enable real AI responses, the backend needs to implement API calls to ${provider}.`
+        },
+        finish_reason: 'stop'
+      }],
+      usage: {
+        prompt_tokens: 100,
+        completion_tokens: 50,
+        total_tokens: 150
+      }
+    });
+  } catch (error) {
+    console.error('Chat completion error:', error);
+    res.status(500).json({ error: 'Failed to generate response' });
   }
 });
 
