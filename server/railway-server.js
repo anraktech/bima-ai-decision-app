@@ -357,6 +357,13 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
     
     // Handle OpenRouter models first (based on provider field or model ID pattern)
     const isOpenRouterModel = provider === 'openrouter' || model.includes('/');
+    console.log('🔍 OpenRouter Debug Info:');
+    console.log('   - provider:', provider);
+    console.log('   - model:', model);
+    console.log('   - isOpenRouterModel:', isOpenRouterModel);
+    console.log('   - openrouter client exists:', !!openrouter);
+    console.log('   - OPENROUTER_API_KEY exists:', !!process.env.OPENROUTER_API_KEY);
+    
     if (isOpenRouterModel && openrouter) {
       console.log('Routing to OpenRouter for model:', model);
       console.log('OpenRouter API configured:', !!openrouter);
