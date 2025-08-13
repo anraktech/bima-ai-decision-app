@@ -305,9 +305,11 @@ app.get('/api/models', authenticateToken, (req, res) => {
 
 app.post('/api/models', authenticateToken, (req, res) => {
   try {
+    console.log('📝 Custom model creation request:', JSON.stringify(req.body, null, 2));
     const { name, base_model, system_prompt, greeting_message } = req.body;
     
     if (!name || !base_model) {
+      console.log('❌ Missing required fields - name:', !!name, 'base_model:', !!base_model);
       return res.status(400).json({ error: 'Name and base model are required' });
     }
     
