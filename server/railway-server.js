@@ -8,6 +8,9 @@ import { dirname, join } from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -20,6 +23,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-pro
 
 // Initialize AI clients
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
+const google = process.env.GOOGLE_API_KEY ? new GoogleGenerativeAI(process.env.GOOGLE_API_KEY) : null;
+const groq = process.env.GROQ_API_KEY ? new Groq({ apiKey: process.env.GROQ_API_KEY }) : null;
+const xai = process.env.XAI_API_KEY ? new OpenAI({ 
+  apiKey: process.env.XAI_API_KEY, 
+  baseURL: 'https://api.x.ai/v1' 
+}) : null;
+const deepseek = process.env.DEEPSEEK_API_KEY ? new OpenAI({ 
+  apiKey: process.env.DEEPSEEK_API_KEY, 
+  baseURL: 'https://api.deepseek.com' 
+}) : null;
 
 // Database setup - use persistent volume in production
 const dbDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || __dirname;
@@ -314,96 +328,152 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
           });
         }
       }
-    } else if (model.includes('claude') && process.env.ANTHROPIC_API_KEY) {
-      // Anthropic API call (you'd need to install @anthropic-ai/sdk)
-      // For now, return a message that Anthropic is not yet implemented
-      response = {
-        id: 'claude-' + Date.now(),
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: model,
-        choices: [{
-          index: 0,
-          message: {
-            role: 'assistant',
-            content: 'Anthropic Claude integration is coming soon. Please use OpenAI models for now.'
-          },
-          finish_reason: 'stop'
-        }],
-        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }
-      };
-    } else if (model.includes('gemini') && process.env.GOOGLE_API_KEY) {
-      // Google API call (you'd need to install @google/generative-ai)
-      // For now, return a message that Google is not yet implemented
-      response = {
-        id: 'gemini-' + Date.now(),
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: model,
-        choices: [{
-          index: 0,
-          message: {
-            role: 'assistant',
-            content: 'Google Gemini integration is coming soon. Please use OpenAI models for now.'
-          },
-          finish_reason: 'stop'
-        }],
-        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }
-      };
-    } else if ((model.includes('llama') || model.includes('gemma')) && process.env.GROQ_API_KEY) {
-      // Groq API call (you'd need to install groq-sdk)
-      // For now, return a message that Groq is not yet implemented
-      response = {
-        id: 'groq-' + Date.now(),
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: model,
-        choices: [{
-          index: 0,
-          message: {
-            role: 'assistant',
-            content: 'Groq integration is coming soon. Please use OpenAI models for now.'
-          },
-          finish_reason: 'stop'
-        }],
-        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }
-      };
-    } else if (model.includes('grok') && process.env.XAI_API_KEY) {
-      // xAI API call (you'd need to install @xai/sdk)
-      // For now, return a message that xAI is not yet implemented
-      response = {
-        id: 'xai-' + Date.now(),
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: model,
-        choices: [{
-          index: 0,
-          message: {
-            role: 'assistant',
-            content: 'xAI Grok integration is coming soon. Please use OpenAI models for now.'
-          },
-          finish_reason: 'stop'
-        }],
-        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }
-      };
-    } else if (model.includes('deepseek') && process.env.DEEPSEEK_API_KEY) {
-      // Deepseek API call (you'd need to install deepseek-sdk)
-      // For now, return a message that Deepseek is not yet implemented
-      response = {
-        id: 'deepseek-' + Date.now(),
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: model,
-        choices: [{
-          index: 0,
-          message: {
-            role: 'assistant',
-            content: 'Deepseek integration is coming soon. Please use OpenAI models for now.'
-          },
-          finish_reason: 'stop'
-        }],
-        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }
-      };
+    } else if (model.includes('claude') && anthropic) {
+      // Real Anthropic API call
+      try {
+        const anthropicResponse = await anthropic.messages.create({
+          model: model,
+          max_tokens: max_tokens,
+          temperature: temperature,
+          messages: messages.filter(msg => msg.role !== 'system').map(msg => ({
+            role: msg.role,
+            content: msg.content
+          })),
+          system: messages.find(msg => msg.role === 'system')?.content
+        });
+        
+        response = {
+          id: 'claude-' + Date.now(),
+          object: 'chat.completion',
+          created: Math.floor(Date.now() / 1000),
+          model: model,
+          choices: [{
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: anthropicResponse.content[0].text
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { 
+            prompt_tokens: anthropicResponse.usage.input_tokens,
+            completion_tokens: anthropicResponse.usage.output_tokens,
+            total_tokens: anthropicResponse.usage.input_tokens + anthropicResponse.usage.output_tokens
+          }
+        };
+      } catch (error) {
+        console.error('Anthropic API error:', error);
+        return res.status(500).json({ 
+          error: 'Failed to generate response from Anthropic',
+          details: error.message || 'Unknown error'
+        });
+      }
+    } else if (model.includes('gemini') && google) {
+      // Real Google Gemini API call
+      try {
+        const geminiModel = google.getGenerativeModel({ model: model });
+        
+        // Convert messages to Gemini format
+        const systemMessage = messages.find(msg => msg.role === 'system');
+        const userMessages = messages.filter(msg => msg.role !== 'system');
+        
+        let prompt = '';
+        if (systemMessage) {
+          prompt += `Instructions: ${systemMessage.content}\n\n`;
+        }
+        
+        // Build conversation history for Gemini
+        userMessages.forEach(msg => {
+          if (msg.role === 'user') {
+            prompt += `User: ${msg.content}\n`;
+          } else {
+            prompt += `Assistant: ${msg.content}\n`;
+          }
+        });
+        
+        const result = await geminiModel.generateContent(prompt);
+        const googleResponse = result.response;
+        
+        response = {
+          id: 'gemini-' + Date.now(),
+          object: 'chat.completion',
+          created: Math.floor(Date.now() / 1000),
+          model: model,
+          choices: [{
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: googleResponse.text()
+            },
+            finish_reason: 'stop'
+          }],
+          usage: { 
+            prompt_tokens: result.response.usageMetadata?.promptTokenCount || 0,
+            completion_tokens: result.response.usageMetadata?.candidatesTokenCount || 0,
+            total_tokens: result.response.usageMetadata?.totalTokenCount || 0
+          }
+        };
+      } catch (error) {
+        console.error('Google API error:', error);
+        return res.status(500).json({ 
+          error: 'Failed to generate response from Google',
+          details: error.message || 'Unknown error'
+        });
+      }
+    } else if ((model.includes('llama') || model.includes('gemma')) && groq) {
+      // Real Groq API call
+      try {
+        const groqResponse = await groq.chat.completions.create({
+          messages: messages,
+          model: model,
+          temperature: temperature,
+          max_tokens: max_tokens,
+        });
+        
+        response = groqResponse;
+      } catch (error) {
+        console.error('Groq API error:', error);
+        return res.status(500).json({ 
+          error: 'Failed to generate response from Groq',
+          details: error.message || 'Unknown error'
+        });
+      }
+    } else if (model.includes('grok') && xai) {
+      // Real xAI API call (OpenAI-compatible)
+      try {
+        const xaiResponse = await xai.chat.completions.create({
+          model: model,
+          messages: messages,
+          temperature: temperature,
+          max_tokens: max_tokens,
+        });
+        
+        response = xaiResponse;
+      } catch (error) {
+        console.error('xAI API error:', error);
+        return res.status(500).json({ 
+          error: 'Failed to generate response from xAI',
+          details: error.message || 'Unknown error'
+        });
+      }
+    } else if (model.includes('deepseek') && deepseek) {
+      // Real Deepseek API call (OpenAI-compatible)
+      try {
+        const deepseekResponse = await deepseek.chat.completions.create({
+          model: model,
+          messages: messages,
+          temperature: temperature,
+          max_tokens: max_tokens,
+        });
+        
+        response = deepseekResponse;
+      } catch (error) {
+        console.error('Deepseek API error:', error);
+        return res.status(500).json({ 
+          error: 'Failed to generate response from Deepseek',
+          details: error.message || 'Unknown error'
+        });
+      }
     } else {
       return res.status(400).json({ error: 'Model not supported or API key not configured' });
     }
