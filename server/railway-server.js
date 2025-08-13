@@ -371,14 +371,22 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
         response = openrouterResponse;
         console.log('✅ OpenRouter API success for model:', model);
       } catch (error) {
-        console.error('❌ OpenRouter API error for model:', model, 'Error:', error.message);
+        console.error('❌ OpenRouter API error for model:', model);
+        console.error('   Error status:', error.status);
+        console.error('   Error message:', error.message);
+        console.error('   Error details:', JSON.stringify(error.error || {}, null, 2));
         
         // Handle specific OpenRouter error types
         if (error.status === 400) {
           return res.status(400).json({ 
             error: 'Invalid model or request. Check model ID format.',
-            details: `The model "${model}" may not be available or the request format is invalid.`,
-            provider: 'OpenRouter'
+            details: `The model "${model}" failed with 400 error. Message: ${error.message}`,
+            provider: 'OpenRouter',
+            debugInfo: {
+              modelId: model,
+              errorStatus: error.status,
+              errorMessage: error.message
+            }
           });
         } else if (error.status === 401) {
           return res.status(401).json({ 
