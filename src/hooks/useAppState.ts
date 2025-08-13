@@ -399,32 +399,63 @@ export const useAppState = () => {
         
         console.log('API Response received. Content length:', responseContent?.length || 0, 'Content preview:', responseContent?.substring(0, 100));
         
-        // Store token usage
+        // Store token usage with robust error handling
         if (tokenUsage) {
-          console.log('Token usage for', activePanel.model?.id, ':', tokenUsage);
+          console.log('🔍 Token usage tracking:', {
+            model: activePanel.model?.id,
+            usage: tokenUsage,
+            totalTokens: tokenUsage.total_tokens
+          });
+          
           const authToken = localStorage.getItem('token');
           if (authToken) {
-            fetch(`${API_URL}/api/usage/track`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-              },
-              body: JSON.stringify({
-                model_id: activePanel.model?.id,
-                model_name: activePanel.model?.displayName || activePanel.model?.id,
-                prompt_tokens: tokenUsage.prompt_tokens,
-                completion_tokens: tokenUsage.completion_tokens,
-                total_tokens: tokenUsage.total_tokens,
-                tokens: tokenUsage.total_tokens,
-                cost: tokenUsage.total_tokens * 0.00001,
-                model: activePanel.model?.displayName || activePanel.model?.id,
-                conversation_id: state.conversation.id || undefined
-              })
-            }).catch(error => {
-              console.error('Failed to track usage:', error);
-            });
+            const trackUsage = async (retries = 3) => {
+              try {
+                const response = await fetch(`${API_URL}/api/usage/track`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                  },
+                  body: JSON.stringify({
+                    model_id: activePanel.model?.id,
+                    model_name: activePanel.model?.displayName || activePanel.model?.id,
+                    prompt_tokens: tokenUsage.prompt_tokens,
+                    completion_tokens: tokenUsage.completion_tokens,
+                    total_tokens: tokenUsage.total_tokens,
+                    tokens: tokenUsage.total_tokens,
+                    cost: tokenUsage.total_tokens * 0.00001,
+                    model: activePanel.model?.displayName || activePanel.model?.id,
+                    conversation_id: state.conversation.id || undefined
+                  })
+                });
+                
+                if (response.ok) {
+                  const result = await response.json();
+                  console.log('✅ Usage tracked successfully:', result);
+                } else {
+                  const error = await response.text();
+                  console.error('❌ Usage tracking failed:', response.status, error);
+                  if (retries > 0) {
+                    console.log(`🔄 Retrying usage tracking (${retries} attempts left)...`);
+                    setTimeout(() => trackUsage(retries - 1), 1000);
+                  }
+                }
+              } catch (error) {
+                console.error('❌ Usage tracking network error:', error);
+                if (retries > 0) {
+                  console.log(`🔄 Retrying usage tracking (${retries} attempts left)...`);
+                  setTimeout(() => trackUsage(retries - 1), 1000);
+                }
+              }
+            };
+            
+            trackUsage();
+          } else {
+            console.error('❌ No auth token found for usage tracking');
           }
+        } else {
+          console.warn('⚠️ No token usage data received from AI response');
         }
 
         // Only add the response if the conversation is still active

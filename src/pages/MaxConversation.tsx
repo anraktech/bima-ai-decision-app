@@ -240,30 +240,63 @@ export function MaxConversation() {
       setMessageCount(prev => prev + 1);
       setCurrentModelIndex((currentModelIndex + 1) % activeModels.length);
       
-      // Track token usage
+      // Track token usage with robust error handling
       if (response.usage && user) {
+        console.log('🔍 MAX Mode token usage tracking:', {
+          model: currentModel.model.name,
+          usage: response.usage,
+          totalTokens: response.usage.total_tokens
+        });
+        
         const authToken = localStorage.getItem('token');
         if (authToken) {
-          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/usage/track`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authToken}`
-            },
-            body: JSON.stringify({
-              model_id: currentModel.model.id,
-              model_name: currentModel.model.name,
-              prompt_tokens: response.usage.prompt_tokens,
-              completion_tokens: response.usage.completion_tokens,
-              total_tokens: response.usage.total_tokens,
-              tokens: response.usage.total_tokens,
-              cost: response.usage.total_tokens * 0.00001,
-              model: currentModel.model.name
-            })
-          }).catch(error => {
-            console.error('Failed to track usage in MAX mode:', error);
-          });
+          const trackUsage = async (retries = 3) => {
+            try {
+              const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+              const trackResponse = await fetch(`${apiUrl}/api/usage/track`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({
+                  model_id: currentModel.model.id,
+                  model_name: currentModel.model.name,
+                  prompt_tokens: response.usage.prompt_tokens,
+                  completion_tokens: response.usage.completion_tokens,
+                  total_tokens: response.usage.total_tokens,
+                  tokens: response.usage.total_tokens,
+                  cost: response.usage.total_tokens * 0.00001,
+                  model: currentModel.model.name
+                })
+              });
+              
+              if (trackResponse.ok) {
+                const result = await trackResponse.json();
+                console.log('✅ MAX Mode usage tracked successfully:', result);
+              } else {
+                const error = await trackResponse.text();
+                console.error('❌ MAX Mode usage tracking failed:', trackResponse.status, error);
+                if (retries > 0) {
+                  console.log(`🔄 Retrying MAX mode usage tracking (${retries} attempts left)...`);
+                  setTimeout(() => trackUsage(retries - 1), 1000);
+                }
+              }
+            } catch (error) {
+              console.error('❌ MAX Mode usage tracking network error:', error);
+              if (retries > 0) {
+                console.log(`🔄 Retrying MAX mode usage tracking (${retries} attempts left)...`);
+                setTimeout(() => trackUsage(retries - 1), 1000);
+              }
+            }
+          };
+          
+          trackUsage();
+        } else {
+          console.error('❌ No auth token found for MAX mode usage tracking');
         }
+      } else {
+        console.warn('⚠️ No token usage data received in MAX mode response');
       }
       
     } catch (error) {

@@ -618,30 +618,63 @@ export function MultiplayerArena() {
       // Add to local messages
       setArenaMessages(prev => [...prev, aiMessage]);
       
-      // Track token usage
+      // Track token usage with robust error handling
       if (responseUsage && user) {
+        console.log('🔍 Multiplayer Arena token usage tracking:', {
+          model: activeModel?.name || modelId,
+          usage: responseUsage,
+          totalTokens: responseUsage.total_tokens
+        });
+        
         const authToken = localStorage.getItem('token');
         if (authToken) {
-          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/usage/track`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authToken}`
-            },
-            body: JSON.stringify({
-              model_id: modelId,
-              model_name: activeModel?.name || modelId,
-              prompt_tokens: responseUsage.prompt_tokens,
-              completion_tokens: responseUsage.completion_tokens,
-              total_tokens: responseUsage.total_tokens,
-              tokens: responseUsage.total_tokens,
-              cost: responseUsage.total_tokens * 0.00001,
-              model: activeModel?.name || modelId
-            })
-          }).catch(error => {
-            console.error('Failed to track usage in Multiplayer Arena:', error);
-          });
+          const trackUsage = async (retries = 3) => {
+            try {
+              const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+              const trackResponse = await fetch(`${apiUrl}/api/usage/track`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({
+                  model_id: modelId,
+                  model_name: activeModel?.name || modelId,
+                  prompt_tokens: responseUsage.prompt_tokens,
+                  completion_tokens: responseUsage.completion_tokens,
+                  total_tokens: responseUsage.total_tokens,
+                  tokens: responseUsage.total_tokens,
+                  cost: responseUsage.total_tokens * 0.00001,
+                  model: activeModel?.name || modelId
+                })
+              });
+              
+              if (trackResponse.ok) {
+                const result = await trackResponse.json();
+                console.log('✅ Multiplayer Arena usage tracked successfully:', result);
+              } else {
+                const error = await trackResponse.text();
+                console.error('❌ Multiplayer Arena usage tracking failed:', trackResponse.status, error);
+                if (retries > 0) {
+                  console.log(`🔄 Retrying Multiplayer Arena usage tracking (${retries} attempts left)...`);
+                  setTimeout(() => trackUsage(retries - 1), 1000);
+                }
+              }
+            } catch (error) {
+              console.error('❌ Multiplayer Arena usage tracking network error:', error);
+              if (retries > 0) {
+                console.log(`🔄 Retrying Multiplayer Arena usage tracking (${retries} attempts left)...`);
+                setTimeout(() => trackUsage(retries - 1), 1000);
+              }
+            }
+          };
+          
+          trackUsage();
+        } else {
+          console.error('❌ No auth token found for Multiplayer Arena usage tracking');
         }
+      } else {
+        console.warn('⚠️ No token usage data received in Multiplayer Arena response');
       }
       
       // Update arena state

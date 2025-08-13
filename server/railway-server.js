@@ -1599,18 +1599,24 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Model not supported or API key not configured' });
     }
     
-    // Track token usage
+    // Track token usage - adapted to existing table structure
     if (response.usage) {
-      db.prepare(
-        'INSERT INTO token_usage (user_id, model_id, model_name, prompt_tokens, completion_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(
-        req.user.userId,
-        model,
-        model,
-        response.usage.prompt_tokens || 0,
-        response.usage.completion_tokens || 0,
-        response.usage.total_tokens || 0
-      );
+      const totalTokens = response.usage.total_tokens || (response.usage.prompt_tokens + response.usage.completion_tokens) || 0;
+      const cost = totalTokens * 0.00001; // Estimate cost
+      
+      try {
+        db.prepare(
+          'INSERT INTO token_usage (user_id, tokens, cost, model) VALUES (?, ?, ?, ?)'
+        ).run(
+          req.user.userId,
+          totalTokens,
+          cost,
+          model
+        );
+        console.log(`✅ Usage tracked: ${totalTokens} tokens for ${model} (user ${req.user.userId})`);
+      } catch (error) {
+        console.error('❌ Failed to track usage in chat/completions:', error);
+      }
     }
     
     res.json(response);
