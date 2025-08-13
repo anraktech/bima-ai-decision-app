@@ -350,6 +350,42 @@ app.post('/api/chat/completions', authenticateToken, async (req, res) => {
         }],
         usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }
       };
+    } else if ((model.includes('llama') || model.includes('gemma')) && process.env.GROQ_API_KEY) {
+      // Groq API call (you'd need to install groq-sdk)
+      // For now, return a message that Groq is not yet implemented
+      response = {
+        id: 'groq-' + Date.now(),
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: model,
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: 'Groq integration is coming soon. Please use OpenAI models for now.'
+          },
+          finish_reason: 'stop'
+        }],
+        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }
+      };
+    } else if (model.includes('grok') && process.env.XAI_API_KEY) {
+      // xAI API call (you'd need to install @xai/sdk)
+      // For now, return a message that xAI is not yet implemented
+      response = {
+        id: 'xai-' + Date.now(),
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: model,
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: 'xAI Grok integration is coming soon. Please use OpenAI models for now.'
+          },
+          finish_reason: 'stop'
+        }],
+        usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }
+      };
     } else {
       return res.status(400).json({ error: 'Model not supported or API key not configured' });
     }
@@ -405,8 +441,11 @@ app.get('/api/models/providers', async (req, res) => {
         id: 'openai',
         name: 'OpenAI',
         models: [
-          { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', requiresKey: true },
+          { id: 'o1', name: 'o1 (Advanced Reasoning)', provider: 'openai', requiresKey: true },
+          { id: 'o1-mini', name: 'o1 Mini (Fast Reasoning)', provider: 'openai', requiresKey: true },
+          { id: 'gpt-4o', name: 'GPT-4o (Latest)', provider: 'openai', requiresKey: true },
           { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', requiresKey: true },
+          { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openai', requiresKey: true },
           { id: 'gpt-4', name: 'GPT-4', provider: 'openai', requiresKey: true },
           { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai', requiresKey: true }
         ]
@@ -415,9 +454,7 @@ app.get('/api/models/providers', async (req, res) => {
         id: 'anthropic',
         name: 'Anthropic',
         models: [
-          { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic', requiresKey: true },
-          { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'anthropic', requiresKey: true },
-          { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', provider: 'anthropic', requiresKey: true }
+          { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic', requiresKey: true }
         ]
       },
       {
@@ -425,7 +462,27 @@ app.get('/api/models/providers', async (req, res) => {
         name: 'Google',
         models: [
           { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'google', requiresKey: true },
-          { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'google', requiresKey: true }
+          { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'google', requiresKey: true },
+          { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash 8B', provider: 'google', requiresKey: true }
+        ]
+      },
+      {
+        id: 'groq',
+        name: 'Groq',
+        models: [
+          { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Latest)', provider: 'groq', requiresKey: true },
+          { id: 'llama-3.2-90b-vision-preview', name: 'Llama 3.2 90B Vision', provider: 'groq', requiresKey: true },
+          { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant', provider: 'groq', requiresKey: true },
+          { id: 'gemma2-9b-it', name: 'Gemma 2 9B', provider: 'groq', requiresKey: true }
+        ]
+      },
+      {
+        id: 'xai',
+        name: 'xAI',
+        models: [
+          { id: 'grok-2-1212', name: 'Grok 2 (Dec 2024)', provider: 'xai', requiresKey: true },
+          { id: 'grok-2-vision-1212', name: 'Grok 2 Vision (Dec 2024)', provider: 'xai', requiresKey: true },
+          { id: 'grok-beta', name: 'Grok Beta', provider: 'xai', requiresKey: true }
         ]
       }
     ];
@@ -434,12 +491,16 @@ app.get('/api/models/providers', async (req, res) => {
     const hasOpenAI = !!process.env.OPENAI_API_KEY;
     const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
     const hasGoogle = !!process.env.GOOGLE_API_KEY;
+    const hasGroq = !!process.env.GROQ_API_KEY;
+    const hasXAI = !!process.env.XAI_API_KEY;
 
     // Filter providers based on available keys
     const availableProviders = providers.filter(provider => {
       if (provider.name === 'OpenAI') return hasOpenAI;
       if (provider.name === 'Anthropic') return hasAnthropic;
       if (provider.name === 'Google') return hasGoogle;
+      if (provider.name === 'Groq') return hasGroq;
+      if (provider.name === 'xAI') return hasXAI;
       return false;
     });
 
