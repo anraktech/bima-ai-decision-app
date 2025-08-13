@@ -10,6 +10,7 @@ import { API_URL, getApiUrl, getWsUrl } from '../config/api';
 
 // Perplexity removed - models not working properly
 import { generateDeepseekResponse } from '../services/deepseek';
+import { generateOpenRouterResponse } from '../services/openrouter';
 import { 
   MessageSquare, 
   Send, 
@@ -581,6 +582,13 @@ export function MultiplayerArena() {
       // Perplexity case removed - models not working properly
       } else if (provider === 'deepseek') {
         const response = await generateDeepseekResponse(
+          modelId,
+          fullSystemInstructions,
+          messageHistory
+        );
+        responseContent = response.content;
+      } else if (provider === 'openrouter') {
+        const response = await generateOpenRouterResponse(
           modelId,
           fullSystemInstructions,
           messageHistory

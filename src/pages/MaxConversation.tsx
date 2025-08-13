@@ -8,6 +8,7 @@ import { generateGroqResponse } from '../services/groq';
 import { generateXAIResponse } from '../services/xai';
 // Perplexity removed - models not working properly
 import { generateDeepseekResponse } from '../services/deepseek';
+import { generateOpenRouterResponse } from '../services/openrouter';
 import { 
   ArrowLeft, 
   Zap, 
@@ -212,6 +213,11 @@ export function MaxConversation() {
           console.log('Calling Deepseek with:', modelId, enhancedInstructions.substring(0, 100));
           response = await generateDeepseekResponse(modelId, enhancedInstructions, messageHistory);
           console.log('Deepseek response:', response);
+          break;
+        case 'openrouter':
+          console.log('Calling OpenRouter with:', modelId, enhancedInstructions.substring(0, 100));
+          response = await generateOpenRouterResponse(modelId, enhancedInstructions, messageHistory);
+          console.log('OpenRouter response:', response);
           break;
         default:
           throw new Error(`Unsupported provider: ${provider}`);
