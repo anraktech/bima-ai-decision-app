@@ -50,7 +50,7 @@ interface SubscriptionData {
 export const Billing = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [billingCycle] = useState<'monthly'>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<string>('starter');
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -83,7 +83,7 @@ export const Billing = () => {
     {
       id: 'starter',
       name: 'Starter Pack',
-      price: billingCycle === 'monthly' ? 19 : 190,
+      price: 19,
       tokens: '250,000',
       overageRate: '$0.76 per 10K',
       icon: <Rocket className="w-6 h-6" />,
@@ -101,7 +101,7 @@ export const Billing = () => {
     {
       id: 'professional',
       name: 'Professional',
-      price: billingCycle === 'monthly' ? 49 : 490,
+      price: 49,
       tokens: '750,000',
       overageRate: '$0.65 per 10K',
       icon: <BarChart3 className="w-6 h-6" />,
@@ -119,7 +119,7 @@ export const Billing = () => {
     {
       id: 'enterprise',
       name: 'Enterprise',
-      price: billingCycle === 'monthly' ? 199 : 1990,
+      price: 199,
       tokens: '3,000,000',
       overageRate: '$0.50 per 10K',
       icon: <Building2 className="w-6 h-6" />,
@@ -314,32 +314,6 @@ export const Billing = () => {
             Scale your AI decision-making power with flexible pricing that grows with your needs
           </p>
 
-          {/* Billing Toggle */}
-          <div className="inline-flex items-center bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setBillingCycle('monthly')}
-              className={`px-6 py-2 rounded-md font-medium transition-all ${
-                billingCycle === 'monthly'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setBillingCycle('annual')}
-              className={`px-6 py-2 rounded-md font-medium transition-all ${
-                billingCycle === 'annual'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Annual
-              <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                Save 17%
-              </span>
-            </button>
-          </div>
 
           {!isLoading && subscription && (
             <div className="mt-8 max-w-2xl mx-auto">
@@ -464,7 +438,7 @@ export const Billing = () => {
                     </span>
                     {tier.price > 0 && (
                       <span className="text-gray-500 ml-1">
-                        /{billingCycle === 'monthly' ? 'mo' : 'yr'}
+/mo
                       </span>
                     )}
                   </div>
@@ -604,12 +578,6 @@ export const Billing = () => {
             </div>
             
             <div className="space-y-6">
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Do you offer refunds?</h4>
-                <p className="text-gray-600 text-sm">
-                  We offer a 30-day money-back guarantee for all paid plans, no questions asked.
-                </p>
-              </div>
               <div>
                 <h4 className="font-semibold text-gray-900 mb-2">Is my data secure?</h4>
                 <p className="text-gray-600 text-sm">
