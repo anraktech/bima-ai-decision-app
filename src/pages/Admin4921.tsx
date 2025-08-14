@@ -65,23 +65,39 @@ export const Admin4921 = () => {
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
+      console.log('Fetching users with token:', token);
+      console.log('API URL:', `${API_URL}/api/admin/users`);
+      
       const response = await fetch(`${API_URL}/api/admin/users`, {
+        method: 'GET',
         headers: { 
           'Authorization': `Bearer ${token}`,
-          'X-Admin-Key': 'anrak-admin-2025'
+          'X-Admin-Key': 'anrak-admin-2025',
+          'Content-Type': 'application/json'
         }
       });
 
+      console.log('Response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
-        setUsers(data);
-        setFilteredUsers(data);
-        calculateStats(data);
+        console.log('Users data received:', data);
+        setUsers(data || []);
+        setFilteredUsers(data || []);
+        calculateStats(data || []);
       } else {
-        console.error('Failed to fetch users');
+        const errorText = await response.text();
+        console.error('Failed to fetch users:', response.status, errorText);
+        // If unauthorized, might need to re-login
+        if (response.status === 401 || response.status === 403) {
+          console.error('Auth issue - token might be expired');
+        }
       }
     } catch (error) {
       console.error('Error fetching users:', error);
+      // Set empty arrays to prevent crashes
+      setUsers([]);
+      setFilteredUsers([]);
     } finally {
       setIsLoading(false);
     }
