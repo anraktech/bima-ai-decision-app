@@ -2937,20 +2937,34 @@ app.post('/api/stripe/create-payment-intent', authenticateUser, async (req, res)
         return res.status(400).json({ error: 'Invalid plan type' });
       }
     }
-    // Create payment intent with the adjusted amount
+    // Create payment intent with better configuration to avoid captcha issues
     const paymentIntentData = {
       amount: finalAmount,
       currency: 'usd',
       customer: customerId,
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: 'never' // Prevent redirects that can cause issues
+      },
+      confirmation_method: 'manual',
+      confirm: false,
+      payment_method_options: {
+        card: {
+          request_three_d_secure: 'automatic'
+        }
+      },
       metadata: {
-        userId: req.user.id,
         planType: planType,
         couponCode: couponCode || '',
         couponId: couponId || ''
       }
     };
-    // If there's a coupon, we'll apply it during subscription creation
-    // For now, the payment intent uses the discounted amount
+    
+    // Add userId to metadata if available (only for authenticated requests)
+    if (req.user && req.user.id) {
+      paymentIntentData.metadata.userId = req.user.id;
+    }
+    
     const paymentIntent = await stripe.paymentIntents.create(paymentIntentData);
     res.json({ client_secret: paymentIntent.client_secret });
   } catch (error) {

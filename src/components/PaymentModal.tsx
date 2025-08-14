@@ -146,7 +146,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
 
       const { client_secret } = await paymentIntentResponse.json();
 
-      // Confirm payment
+      // Confirm payment with better authentication handling
       const { error, paymentIntent } = await stripe.confirmCardPayment(client_secret, {
         payment_method: {
           card: cardElement,
@@ -155,16 +155,24 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
             email: user?.email,
           },
         },
+        return_url: window.location.origin + '/billing', // Add return URL for 3D Secure
       });
 
       if (error) {
         console.error('Payment failed:', error);
-        setErrorMessage(error.message || 'Payment failed');
+        // Handle specific error types better
+        if (error.type === 'authentication_error') {
+          setErrorMessage('Payment authentication failed. Please try a different card or contact your bank.');
+        } else if (error.code === 'payment_intent_authentication_failure') {
+          setErrorMessage('Payment verification failed. Please try again with a different payment method.');
+        } else {
+          setErrorMessage(error.message || 'Payment failed');
+        }
         setPaymentStatus('error');
       } else if (paymentIntent.status === 'succeeded') {
         setPaymentStatus('success');
         
-        // Update local subscription
+        // Update local subscription for successful payment
         await fetch(`${API_URL}/api/subscription/upgrade`, {
           method: 'POST',
           headers: {
@@ -180,6 +188,38 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
           onSuccess();
           onClose();
         }, 2000);
+      } else if (paymentIntent.status === 'requires_action') {
+        // Handle 3D Secure or other authentication
+        const { error: confirmError, paymentIntent: confirmedPaymentIntent } = await stripe.confirmCardPayment(client_secret);
+        if (confirmError) {
+          setErrorMessage(confirmError.message || 'Payment authentication failed');
+          setPaymentStatus('error');
+        } else if (confirmedPaymentIntent.status === 'succeeded') {
+          setPaymentStatus('success');
+          
+          // Update local subscription for successful authenticated payment
+          await fetch(`${API_URL}/api/subscription/upgrade`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              planType
+            })
+          });
+
+          setTimeout(() => {
+            onSuccess();
+            onClose();
+          }, 2000);
+        } else {
+          setErrorMessage('Payment requires additional verification. Please try again.');
+          setPaymentStatus('error');
+        }
+      } else {
+        setErrorMessage('Payment failed. Please try again.');
+        setPaymentStatus('error');
       }
     } catch (error) {
       console.error('Payment error:', error);
