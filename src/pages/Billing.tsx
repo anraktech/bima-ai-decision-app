@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { PaymentModal } from '../components/PaymentModal';
+import { SimplePaymentButton } from '../components/SimplePaymentButton';
 import { API_URL } from '../config/api';
 import { 
   Check, 
@@ -54,7 +54,7 @@ export const Billing = () => {
   const [selectedPlan, setSelectedPlan] = useState<string>('starter');
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [showPaymentButton, setShowPaymentButton] = useState(false);
   const [selectedPaymentPlan, setSelectedPaymentPlan] = useState<{
     type: string;
     name: string;
@@ -198,7 +198,7 @@ export const Billing = () => {
           name: selectedTier.name,
           price: selectedTier.price
         });
-        setPaymentModalOpen(true);
+        setShowPaymentButton(true);
       }
     } else if (planId === 'explore') {
       // Free plan selected - no payment needed
@@ -595,16 +595,30 @@ export const Billing = () => {
         </div>
       </div>
 
-      {/* Payment Modal */}
-      {paymentModalOpen && selectedPaymentPlan && (
-        <PaymentModal
-          isOpen={paymentModalOpen}
-          onClose={() => setPaymentModalOpen(false)}
-          planType={selectedPaymentPlan.type}
-          planName={selectedPaymentPlan.name}
-          planPrice={selectedPaymentPlan.price}
-          onSuccess={handlePaymentSuccess}
-        />
+      {/* Simple Payment Button Modal */}
+      {showPaymentButton && selectedPaymentPlan && user && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+            <h2 className="text-2xl font-bold mb-4">Upgrade to {selectedPaymentPlan.name}</h2>
+            <p className="text-gray-600 mb-6">
+              You'll be redirected to Stripe's secure checkout page.
+            </p>
+            <SimplePaymentButton
+              planType={selectedPaymentPlan.type}
+              planName={selectedPaymentPlan.name}
+              planPrice={selectedPaymentPlan.price}
+              userEmail={user.email}
+              userId={user.id}
+              userName={user.name || user.email}
+            />
+            <button
+              onClick={() => setShowPaymentButton(false)}
+              className="w-full mt-3 py-2 text-gray-600 hover:text-gray-800"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

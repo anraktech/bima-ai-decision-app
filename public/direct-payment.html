@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANRAK - Direct Payment</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 18px;
+        }
+        
+        .plans {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .plan {
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .plan:hover {
+            border-color: #667eea;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        }
+        
+        .plan.featured {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea05 0%, #764ba205 100%);
+        }
+        
+        .plan.featured::before {
+            content: 'MOST POPULAR';
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .plan-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .plan-price {
+            font-size: 48px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .plan-price sup {
+            font-size: 24px;
+        }
+        
+        .plan-period {
+            color: #999;
+            margin-bottom: 20px;
+        }
+        
+        .plan-tokens {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .plan-button {
+            width: 100%;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .plan-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+        
+        .plan-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            display: none;
+            background: #fee;
+            color: #c00;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .error.show {
+            display: block;
+        }
+        
+        .success {
+            display: none;
+            background: #efe;
+            color: #0a0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .success.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Choose Your Plan</h1>
+        <p class="subtitle">No Stripe.js, No React, Just Direct API Calls</p>
+        
+        <div class="plans">
+            <div class="plan">
+                <div class="plan-name">Starter</div>
+                <div class="plan-price"><sup>$</sup>19</div>
+                <div class="plan-period">per month</div>
+                <div class="plan-tokens">250,000 tokens</div>
+                <button class="plan-button" onclick="checkout('starter', 19)">
+                    Select Starter
+                </button>
+            </div>
+            
+            <div class="plan featured">
+                <div class="plan-name">Professional</div>
+                <div class="plan-price"><sup>$</sup>49</div>
+                <div class="plan-period">per month</div>
+                <div class="plan-tokens">750,000 tokens</div>
+                <button class="plan-button" onclick="checkout('professional', 49)">
+                    Select Professional
+                </button>
+            </div>
+            
+            <div class="plan">
+                <div class="plan-name">Enterprise</div>
+                <div class="plan-price"><sup>$</sup>199</div>
+                <div class="plan-period">per month</div>
+                <div class="plan-tokens">3,000,000 tokens</div>
+                <button class="plan-button" onclick="checkout('enterprise', 199)">
+                    Select Enterprise
+                </button>
+            </div>
+        </div>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Creating secure checkout session...</p>
+        </div>
+        
+        <div id="error" class="error"></div>
+        <div id="success" class="success"></div>
+    </div>
+    
+    <script>
+        // NO STRIPE.JS - JUST DIRECT API CALLS
+        async function checkout(planType, price) {
+            // Disable all buttons
+            document.querySelectorAll('.plan-button').forEach(btn => {
+                btn.disabled = true;
+                btn.textContent = 'Please wait...';
+            });
+            
+            // Show loading
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('error').classList.remove('show');
+            document.getElementById('success').classList.remove('show');
+            
+            try {
+                // Direct API call - no Stripe.js involved
+                const response = await fetch('https://bima-ai-decision-app-production.up.railway.app/api/stripe/create-checkout-session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        planType: planType,
+                        userEmail: 'customer@example.com',
+                        userName: 'Customer',
+                        userId: 1,
+                        successUrl: window.location.origin + '/dashboard?payment=success',
+                        cancelUrl: window.location.origin + '/dashboard?payment=cancelled'
+                    })
+                });
+                
+                const text = await response.text();
+                console.log('Response:', text);
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${text}`);
+                }
+                
+                const data = JSON.parse(text);
+                
+                if (data.url) {
+                    document.getElementById('success').textContent = 'Success! Redirecting to Stripe checkout...';
+                    document.getElementById('success').classList.add('show');
+                    
+                    // Wait 1 second then redirect
+                    setTimeout(() => {
+                        window.location.href = data.url;
+                    }, 1000);
+                } else {
+                    throw new Error('No checkout URL received');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('error').textContent = 'Error: ' + error.message;
+                document.getElementById('error').classList.add('show');
+                document.getElementById('loading').classList.remove('show');
+                
+                // Re-enable buttons
+                document.querySelectorAll('.plan-button').forEach(btn => {
+                    btn.disabled = false;
+                    const plan = btn.onclick.toString().match(/'(\w+)'/)[1];
+                    btn.textContent = 'Select ' + plan.charAt(0).toUpperCase() + plan.slice(1);
+                });
+            }
+        }
+        
+        // Check for payment status in URL
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('payment') === 'success') {
+            document.getElementById('success').textContent = '✅ Payment successful! Your subscription has been upgraded.';
+            document.getElementById('success').classList.add('show');
+        } else if (params.get('payment') === 'cancelled') {
+            document.getElementById('error').textContent = 'Payment was cancelled. You can try again anytime.';
+            document.getElementById('error').classList.add('show');
+        }
+    </script>
+</body>
+</html>
