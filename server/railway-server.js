@@ -2995,11 +2995,27 @@ app.post('/api/stripe/validate-coupon', async (req, res) => {
 
 // Create Stripe Checkout Session (NO MORE CAPTCHA ISSUES!)
 app.post('/api/stripe/create-checkout-session', async (req, res) => {
+  console.log('📨 Received checkout session request:', { 
+    body: req.body,
+    hasStripe: !!stripe 
+  });
+  
   if (!stripe) {
+    console.error('❌ Stripe not configured - check STRIPE_SECRET_KEY');
     return res.status(500).json({ error: 'Stripe not configured' });
   }
+  
   try {
     const { planType, userEmail, userName, userId, successUrl, cancelUrl } = req.body;
+    
+    console.log('🔍 Request validation:', {
+      planType,
+      userEmail,
+      userName,
+      userId,
+      hasSuccessUrl: !!successUrl,
+      hasCancelUrl: !!cancelUrl
+    });
     
     if (!planType || !userEmail || !userId) {
       return res.status(400).json({ error: 'Missing required fields: planType, userEmail, userId' });
@@ -3012,13 +3028,22 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
       enterprise: process.env.STRIPE_ENTERPRISE_PRICE_ID
     };
     
+    console.log('💳 Price ID configuration:', {
+      starterPriceId: process.env.STRIPE_STARTER_PRICE_ID ? 'SET' : 'MISSING',
+      professionalPriceId: process.env.STRIPE_PROFESSIONAL_PRICE_ID ? 'SET' : 'MISSING',
+      enterprisePriceId: process.env.STRIPE_ENTERPRISE_PRICE_ID ? 'SET' : 'MISSING',
+      requestedPlan: planType
+    });
+    
     const priceId = planPriceIds[planType];
     if (!priceId || priceId.includes('_id_here')) {
-      console.error(`Missing or placeholder Price ID for ${planType}: ${priceId}`);
+      console.error(`❌ Missing or placeholder Price ID for ${planType}: ${priceId}`);
       return res.status(400).json({ 
         error: `Stripe Price ID not configured for ${planType} plan. Please set STRIPE_${planType.toUpperCase()}_PRICE_ID in environment variables.` 
       });
     }
+    
+    console.log(`✅ Using Price ID for ${planType}: ${priceId}`);
 
     // Create or find customer
     let customerId;
@@ -3061,12 +3086,34 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
       }
     };
     
+    console.log('🔄 Creating Stripe checkout session with data:', {
+      customerId,
+      priceId,
+      planType,
+      userId,
+      successUrl: sessionData.success_url,
+      cancelUrl: sessionData.cancel_url
+    });
+    
     const session = await stripe.checkout.sessions.create(sessionData);
     
     res.json({ url: session.url, session_id: session.id });
   } catch (error) {
-    console.error('Create checkout session error:', error);
-    res.status(500).json({ error: 'Failed to create checkout session' });
+    console.error('❌ Create checkout session error:', {
+      message: error.message,
+      type: error.type,
+      code: error.code,
+      param: error.param,
+      detail: error.detail,
+      stack: error.stack
+    });
+    
+    // Return more specific error message
+    const errorMessage = error.message || 'Failed to create checkout session';
+    res.status(500).json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
