@@ -27,7 +27,7 @@ export function Dashboard() {
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const payment = urlParams.get('payment');
-    const sessionId = urlParams.get('session_id');
+    const sessionId = urlParams.get('session_id') || urlParams.get('session');
     
     if (payment === 'success') {
       setPaymentStatus('success');
