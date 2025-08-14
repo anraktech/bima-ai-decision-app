@@ -298,32 +298,65 @@ app.post('/api/stripe/create-customer', authenticateUser, async (req, res) => {
   }
 });
 
+// Coupon validation endpoint
+app.post('/api/stripe/validate-coupon', authenticateUser, async (req, res) => {
+  try {
+    const { code } = req.body;
+    
+    // Define coupon codes and their discounts
+    const validCoupons = {
+      'WELCOME10': 10,    // 10% off
+      'FRIEND20': 20,     // 20% off
+      'SPECIAL50': 50,    // 50% off
+      'HOLIDAY25': 25,    // 25% off
+      'STUDENT15': 15     // 15% off
+    };
+
+    const discount = validCoupons[code.toUpperCase()];
+    
+    if (discount) {
+      res.json({ valid: true, discount });
+    } else {
+      res.json({ valid: false, discount: 0 });
+    }
+  } catch (error) {
+    console.error('Coupon validation error:', error);
+    res.status(500).json({ error: 'Failed to validate coupon' });
+  }
+});
+
 app.post('/api/stripe/create-payment-intent', authenticateUser, async (req, res) => {
   if (!stripe) {
     return res.status(500).json({ error: 'Stripe not configured' });
   }
   try {
-    const { planType, customerId } = req.body;
+    const { planType, customerId, amount, couponCode } = req.body;
     
-    // Define plan amounts (in cents)
-    const planAmounts = {
-      starter: 1900, // $19.00
-      professional: 4900, // $49.00
-      enterprise: 19900 // $199.00
-    };
+    // If custom amount is provided (with coupon), use it
+    let finalAmount = amount;
+    
+    if (!finalAmount) {
+      // Define plan amounts (in cents)
+      const planAmounts = {
+        starter: 1900, // $19.00
+        professional: 4900, // $49.00
+        enterprise: 19900 // $199.00
+      };
 
-    const amount = planAmounts[planType];
-    if (!amount) {
-      return res.status(400).json({ error: 'Invalid plan type' });
+      finalAmount = planAmounts[planType];
+      if (!finalAmount) {
+        return res.status(400).json({ error: 'Invalid plan type' });
+      }
     }
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount,
+      amount: finalAmount,
       currency: 'usd',
       customer: customerId,
       metadata: {
         userId: req.user.id,
         planType: planType,
+        couponCode: couponCode || '',
       },
     });
 

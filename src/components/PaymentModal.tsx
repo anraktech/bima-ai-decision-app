@@ -43,6 +43,45 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [couponApplied, setCouponApplied] = useState<{ code: string; discount: number } | null>(null);
+  const [finalPrice, setFinalPrice] = useState(planPrice);
+
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/stripe/validate-coupon`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ code: couponCode })
+      });
+
+      if (response.ok) {
+        const { valid, discount } = await response.json();
+        if (valid) {
+          setCouponApplied({ code: couponCode, discount });
+          setFinalPrice(Math.max(0, planPrice - (planPrice * discount / 100)));
+        } else {
+          setErrorMessage('Invalid coupon code');
+        }
+      } else {
+        setErrorMessage('Failed to validate coupon code');
+      }
+    } catch (error) {
+      setErrorMessage('Error applying coupon');
+    }
+  };
+
+  const removeCoupon = () => {
+    setCouponApplied(null);
+    setFinalPrice(planPrice);
+    setCouponCode('');
+    setErrorMessage('');
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -89,7 +128,9 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
         },
         body: JSON.stringify({
           planType,
-          customerId: customer_id
+          customerId: customer_id,
+          amount: Math.round(finalPrice * 100), // Convert to cents
+          couponCode: couponApplied?.code
         })
       });
 
@@ -183,6 +224,48 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
         </div>
       </div>
 
+      {/* Coupon Code Section */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Coupon Code (Optional)
+        </label>
+        {!couponApplied ? (
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+              placeholder="Enter coupon code"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
+            <button
+              type="button"
+              onClick={applyCoupon}
+              disabled={!couponCode.trim() || isProcessing}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50"
+            >
+              Apply
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-green-700 font-medium">
+                {couponApplied.code} - {couponApplied.discount}% off applied
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={removeCoupon}
+              className="text-xs text-green-600 hover:text-green-800 underline"
+            >
+              Remove
+            </button>
+          </div>
+        )}
+      </div>
+
       {errorMessage && (
         <div className="flex items-center space-x-2 p-3 bg-red-50 border border-red-200 rounded-lg">
           <AlertCircle className="w-5 h-5 text-red-500" />
@@ -195,10 +278,27 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
           <span className="text-gray-600">Plan:</span>
           <span className="font-medium">{planName}</span>
         </div>
-        <div className="flex justify-between items-center">
-          <span className="text-gray-600">Amount:</span>
-          <span className="font-bold text-lg">${planPrice}</span>
-        </div>
+        {couponApplied ? (
+          <>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-gray-600">Original Price:</span>
+              <span className="line-through text-gray-400">${planPrice}</span>
+            </div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-gray-600">Discount ({couponApplied.discount}%):</span>
+              <span className="text-green-600">-${(planPrice - finalPrice).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center border-t border-gray-200 pt-2">
+              <span className="text-gray-900 font-medium">Total Amount:</span>
+              <span className="font-bold text-lg text-green-600">${finalPrice.toFixed(2)}</span>
+            </div>
+          </>
+        ) : (
+          <div className="flex justify-between items-center">
+            <span className="text-gray-600">Amount:</span>
+            <span className="font-bold text-lg">${planPrice}</span>
+          </div>
+        )}
       </div>
 
       <div className="flex space-x-3">
@@ -223,7 +323,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
           ) : (
             <>
               <CreditCard className="w-4 h-4" />
-              <span>Pay ${planPrice}</span>
+              <span>Pay ${finalPrice.toFixed(2)}</span>
             </>
           )}
         </button>

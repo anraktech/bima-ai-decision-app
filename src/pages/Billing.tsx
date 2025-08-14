@@ -138,19 +138,40 @@ export const Billing = () => {
     }
   ];
 
-  // Fetch subscription data
+  // Fetch subscription data using accurate usage stats
   useEffect(() => {
     const fetchSubscription = async () => {
       if (!token) return;
       
       try {
-        const response = await fetch(`${API_URL}/api/subscription`, {
+        // Use the same accurate API as Profile page
+        const response = await fetch(`${API_URL}/api/usage/stats`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
         if (response.ok) {
-          const data = await response.json();
-          setSubscription(data);
+          const usageData = await response.json();
+          
+          // Create subscription data based on current user tier and actual usage
+          const userTier = user?.subscription_tier || 'explore';
+          const tierLimits = {
+            explore: 50000,
+            starter: 250000,
+            professional: 750000,
+            enterprise: 3000000
+          };
+          
+          const periodStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+          const periodEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+          
+          setSubscription({
+            plan_type: userTier,
+            current_period_start: periodStart.toISOString(),
+            current_period_end: periodEnd.toISOString(),
+            period_tokens_used: usageData.totalTokens || 0,
+            period_tokens_limit: tierLimits[userTier as keyof typeof tierLimits] || 50000,
+            cancel_at_period_end: false
+          });
         }
       } catch (error) {
         console.error('Failed to fetch subscription:', error);
@@ -160,7 +181,7 @@ export const Billing = () => {
     };
 
     fetchSubscription();
-  }, [token]);
+  }, [token, user]);
 
   const currentUserTier = subscription?.plan_type || user?.subscription_tier || 'explore';
   const monthlyTokenUsage = subscription?.period_tokens_used || 0;
@@ -186,15 +207,43 @@ export const Billing = () => {
   };
 
   const handlePaymentSuccess = async () => {
-    // Refresh subscription data
+    // Refresh subscription data using the same accurate API
     try {
-      const response = await fetch(`${API_URL}/api/subscription`, {
+      const response = await fetch(`${API_URL}/api/usage/stats`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.ok) {
-        const data = await response.json();
-        setSubscription(data);
+        const usageData = await response.json();
+        
+        // Update user tier after successful payment - we should call auth endpoint to get updated user
+        const userResponse = await fetch(`${API_URL}/api/auth/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (userResponse.ok) {
+          const updatedUser = await userResponse.json();
+          const userTier = updatedUser.subscription_tier || 'explore';
+          
+          const tierLimits = {
+            explore: 50000,
+            starter: 250000,
+            professional: 750000,
+            enterprise: 3000000
+          };
+          
+          const periodStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+          const periodEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+          
+          setSubscription({
+            plan_type: userTier,
+            current_period_start: periodStart.toISOString(),
+            current_period_end: periodEnd.toISOString(),
+            period_tokens_used: usageData.totalTokens || 0,
+            period_tokens_limit: tierLimits[userTier as keyof typeof tierLimits] || 50000,
+            cancel_at_period_end: false
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to refresh subscription:', error);
