@@ -358,7 +358,7 @@ try {
 app.use(cors({
   origin: function (origin, callback) {
     const allowedOrigins = [
-      'https://bima-ai-decision-app-nzwf.vercel.app',
+      'https://anrak.tech',
       'http://localhost:3000',
       'http://localhost:5173'
     ];
@@ -3056,8 +3056,8 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
           quantity: 1,
         },
       ],
-      success_url: successUrl || `${process.env.CLIENT_URL || 'https://bima-ai-decision-app-production.up.railway.app'}/dashboard?payment=success`,
-      cancel_url: cancelUrl || `${process.env.CLIENT_URL || 'https://bima-ai-decision-app-production.up.railway.app'}/dashboard?payment=cancelled`,
+      success_url: successUrl || `${process.env.CLIENT_URL || 'https://anrak.tech'}/dashboard?payment=success`,
+      cancel_url: cancelUrl || `${process.env.CLIENT_URL || 'https://anrak.tech'}/dashboard?payment=cancelled`,
       allow_promotion_codes: true, // Enable coupon codes in Stripe checkout
       metadata: {
         planType: planType,
