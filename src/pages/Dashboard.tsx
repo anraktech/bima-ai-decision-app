@@ -27,9 +27,25 @@ export function Dashboard() {
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const payment = urlParams.get('payment');
+    const sessionId = urlParams.get('session_id');
     
     if (payment === 'success') {
       setPaymentStatus('success');
+      
+      // If we have a session ID, verify it with the backend
+      if (sessionId) {
+        fetch(`${API_URL}/api/stripe/verify-session/${sessionId}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.paid) {
+              console.log('Payment verified successfully!');
+              // Optionally refresh user data
+              window.location.reload();
+            }
+          })
+          .catch(err => console.error('Session verification failed:', err));
+      }
+      
       // Clear the URL parameter
       window.history.replaceState({}, document.title, window.location.pathname);
       

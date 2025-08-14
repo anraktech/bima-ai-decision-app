@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { SimplePaymentButton } from '../components/SimplePaymentButton';
+import { PaymentLinkButton } from '../components/PaymentLinkButton';
 import { API_URL } from '../config/api';
 import { 
   Check, 
@@ -603,13 +603,10 @@ export const Billing = () => {
             <p className="text-gray-600 mb-6">
               You'll be redirected to Stripe's secure checkout page.
             </p>
-            <SimplePaymentButton
+            <PaymentLinkButton
               planType={selectedPaymentPlan.type}
               planName={selectedPaymentPlan.name}
               planPrice={selectedPaymentPlan.price}
-              userEmail={user.email}
-              userId={user.id}
-              userName={user.name || user.email}
             />
             <button
               onClick={() => setShowPaymentButton(false)}

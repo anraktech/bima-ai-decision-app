@@ -3081,6 +3081,60 @@ app.post('/api/stripe/validate-coupon', async (req, res) => {
   }
 });
 
+// Verify checkout session after payment link redirect
+app.get('/api/stripe/verify-session/:sessionId', async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  
+  try {
+    const { sessionId } = req.params;
+    
+    // Retrieve the checkout session from Stripe
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    
+    if (session.payment_status === 'paid') {
+      // Get user ID from client_reference_id
+      const userId = session.client_reference_id;
+      
+      if (userId && userId !== 'guest') {
+        // Determine plan type from amount
+        let planType = 'explore';
+        const amount = session.amount_total;
+        
+        if (amount === 1900) planType = 'starter';
+        else if (amount === 4900) planType = 'professional';
+        else if (amount === 19900) planType = 'enterprise';
+        
+        // Update user's subscription
+        const result = db.prepare('UPDATE users SET subscription_tier = ? WHERE id = ?')
+          .run(planType, userId);
+        
+        if (result.changes > 0) {
+          console.log(`✅ Updated user ${userId} to ${planType} plan via payment link`);
+        }
+      }
+      
+      res.json({
+        success: true,
+        paid: true,
+        customerEmail: session.customer_details?.email,
+        amount: session.amount_total,
+        userId: userId
+      });
+    } else {
+      res.json({
+        success: false,
+        paid: false,
+        status: session.payment_status
+      });
+    }
+  } catch (error) {
+    console.error('Session verification error:', error);
+    res.status(500).json({ error: 'Failed to verify session' });
+  }
+});
+
 // Create Stripe Checkout Session (NO MORE CAPTCHA ISSUES!)
 app.post('/api/stripe/create-checkout-session', async (req, res) => {
   console.log('📨 Received checkout session request:', { 
