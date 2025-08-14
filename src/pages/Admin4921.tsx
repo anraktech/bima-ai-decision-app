@@ -35,6 +35,7 @@ export const Admin4921 = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -48,10 +49,16 @@ export const Admin4921 = () => {
 
   // Check if user is admin
   useEffect(() => {
-    if (!user || user.email !== 'kapil@anrak.io') {
-      navigate('/dashboard');
-    } else {
-      fetchUsers();
+    // Only check after user is loaded
+    if (user) {
+      if (user.email !== 'kapil@anrak.io') {
+        console.log('Non-admin user attempting to access admin panel:', user.email);
+        navigate('/dashboard');
+      } else {
+        console.log('Admin access granted for:', user.email);
+        setIsCheckingAuth(false);
+        fetchUsers();
+      }
     }
   }, [user]);
 
@@ -171,12 +178,20 @@ export const Admin4921 = () => {
     return new Date(dateString).toLocaleDateString();
   };
 
-  if (isLoading) {
+  if (isCheckingAuth || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">{isCheckingAuth ? 'Verifying admin access...' : 'Loading users...'}</p>
+        </div>
       </div>
     );
+  }
+  
+  // Double-check admin access
+  if (!user || user.email !== 'kapil@anrak.io') {
+    return null;
   }
 
   return (

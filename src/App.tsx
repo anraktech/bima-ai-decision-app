@@ -153,7 +153,11 @@ function App() {
                   <Billing />
                 </PrivateRoute>
               } />
-              <Route path="/admin4921" element={<Admin4921 />} />
+              <Route path="/admin4921" element={
+                <PrivateRoute>
+                  <Admin4921 />
+                </PrivateRoute>
+              } />
             </Routes>
           </PageTransition>
         </BillingProvider>
