@@ -48,7 +48,7 @@ interface SubscriptionData {
 }
 
 export const Billing = () => {
-  const { user, token } = useAuth();
+  const { user, token, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [billingCycle] = useState<'monthly'>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<string>('starter');
@@ -131,6 +131,9 @@ export const Billing = () => {
       if (!token) return;
       
       try {
+        // First, refresh user data to ensure we have latest subscription tier
+        const currentUserData = await refreshUser() || user;
+        
         // Use the same accurate API as Profile page
         const response = await fetch(`${API_URL}/api/usage/stats`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -140,7 +143,7 @@ export const Billing = () => {
           const usageData = await response.json();
           
           // Create subscription data based on current user tier and actual usage
-          const userTier = user?.subscription_tier || 'explore';
+          const userTier = currentUserData?.subscription_tier || user?.subscription_tier || 'explore';
           const tierLimits = {
             explore: 50000,
             starter: 750000,
@@ -168,7 +171,7 @@ export const Billing = () => {
     };
 
     fetchSubscription();
-  }, [token, user]);
+  }, [token, user, refreshUser]);
 
   const currentUserTier = subscription?.plan_type || user?.subscription_tier || 'explore';
   const monthlyTokenUsage = subscription?.period_tokens_used || 0;
@@ -599,6 +602,25 @@ once
               </div>
             </div>
           </div>
+        </div>
+        
+        {/* Cancellation Notice */}
+        <div className="mt-12 bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">Need to Cancel or Change Your Subscription?</h3>
+          <p className="text-gray-600 mb-4">
+            We're sorry to see you go! To cancel your subscription or make changes, please email us directly.
+          </p>
+          <div className="bg-white border border-gray-200 rounded-lg p-4 inline-block">
+            <p className="text-sm text-gray-700">
+              <strong>Email:</strong> <a href="mailto:kapil@anrak.io?subject=Subscription Cancellation Request" className="text-orange-600 hover:text-orange-700">kapil@anrak.io</a>
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              Please include your registered email address and reason for cancellation
+            </p>
+          </div>
+          <p className="text-xs text-gray-500 mt-4">
+            Cancellations are processed within 24 hours • No questions asked • Prorated refunds available
+          </p>
         </div>
       </div>
 

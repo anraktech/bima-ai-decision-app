@@ -14,6 +14,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<User | null>;
   isLoading: boolean;
 }
 
@@ -44,7 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const fetchUser = async (authToken: string) => {
+  const fetchUser = async (authToken: string, skipLoadingUpdate = false) => {
     try {
       console.log('Fetching user with token...');
       const response = await fetch(`${API_URL}/api/auth/me`, {
@@ -57,6 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
+        return userData;
       } else {
         // Token is invalid, clear it
         localStorage.removeItem('token');
@@ -68,9 +70,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('token');
       setToken(null);
     } finally {
-      console.log('Setting isLoading to false');
-      setIsLoading(false);
+      if (!skipLoadingUpdate) {
+        console.log('Setting isLoading to false');
+        setIsLoading(false);
+      }
     }
+  };
+  
+  // Add a refresh function that can be called anytime
+  const refreshUser = async () => {
+    if (token) {
+      const userData = await fetchUser(token, true);
+      return userData;
+    }
+    return null;
   };
 
   const login = async (email: string, password: string) => {
@@ -148,7 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, signup, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, token, login, signup, logout, refreshUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
