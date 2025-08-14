@@ -359,6 +359,7 @@ app.use(cors({
   origin: function (origin, callback) {
     const allowedOrigins = [
       'https://anrak.tech',
+      'https://bima-ai-decision-app-nzwf.vercel.app',
       'http://localhost:3000',
       'http://localhost:5173'
     ];
