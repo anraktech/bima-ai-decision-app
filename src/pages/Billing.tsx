@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { PaymentModal } from '../components/PaymentModal';
+import { API_URL } from '../config/api';
 import { 
   Check, 
   X, 
@@ -17,7 +19,10 @@ import {
   Database,
   Globe,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Settings,
+  Calendar,
+  TrendingUp
 } from 'lucide-react';
 
 interface PricingTier {
@@ -33,11 +38,28 @@ interface PricingTier {
   color: 'orange' | 'gray' | 'black' | 'purple';
 }
 
+interface SubscriptionData {
+  plan_type: string;
+  current_period_start: string;
+  current_period_end: string;
+  period_tokens_used: number;
+  period_tokens_limit: number;
+  cancel_at_period_end?: boolean;
+}
+
 export const Billing = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [selectedPlan, setSelectedPlan] = useState<string>('starter');
+  const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedPaymentPlan, setSelectedPaymentPlan] = useState<{
+    type: string;
+    name: string;
+    price: number;
+  } | null>(null);
 
   const pricingTiers: PricingTier[] = [
     {
@@ -116,14 +138,82 @@ export const Billing = () => {
     }
   ];
 
-  const currentUserTier = (user as any)?.subscription?.tier || 'explore';
-  const monthlyTokenUsage = (user as any)?.usage?.currentMonth || 0;
+  // Fetch subscription data
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      if (!token) return;
+      
+      try {
+        const response = await fetch(`${API_URL}/api/subscription`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setSubscription(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch subscription:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSubscription();
+  }, [token]);
+
+  const currentUserTier = subscription?.plan_type || user?.subscription_tier || 'explore';
+  const monthlyTokenUsage = subscription?.period_tokens_used || 0;
+  const tokenLimit = subscription?.period_tokens_limit || 50000;
+  const usagePercentage = Math.round((monthlyTokenUsage / tokenLimit) * 100);
 
   const handleSelectPlan = (planId: string) => {
     setSelectedPlan(planId);
-    if (planId !== 'explore') {
-      // TODO: Navigate to payment flow when Stripe is integrated
-      alert('Payment integration coming soon! You selected: ' + pricingTiers.find(t => t.id === planId)?.name);
+    if (planId !== 'explore' && planId !== currentUserTier) {
+      const selectedTier = pricingTiers.find(t => t.id === planId);
+      if (selectedTier) {
+        setSelectedPaymentPlan({
+          type: planId,
+          name: selectedTier.name,
+          price: selectedTier.price
+        });
+        setPaymentModalOpen(true);
+      }
+    } else if (planId === 'explore') {
+      // Free plan selected - no payment needed
+      return;
+    }
+  };
+
+  const handlePaymentSuccess = async () => {
+    // Refresh subscription data
+    try {
+      const response = await fetch(`${API_URL}/api/subscription`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSubscription(data);
+      }
+    } catch (error) {
+      console.error('Failed to refresh subscription:', error);
+    }
+  };
+
+  const handleManageBilling = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/stripe/billing-portal`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const { url } = await response.json();
+        window.open(url, '_blank');
+      }
+    } catch (error) {
+      console.error('Failed to open billing portal:', error);
     }
   };
 
@@ -202,14 +292,78 @@ export const Billing = () => {
             </button>
           </div>
 
-          {currentUserTier !== 'explore' && (
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg inline-block">
-              <p className="text-sm text-blue-700">
-                <strong>Current Plan:</strong> {pricingTiers.find(t => t.id === currentUserTier)?.name}
-                <span className="ml-4">
-                  <strong>Tokens Used:</strong> {monthlyTokenUsage.toLocaleString()} this month
-                </span>
-              </p>
+          {!isLoading && subscription && (
+            <div className="mt-8 max-w-2xl mx-auto">
+              <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Current Subscription</h3>
+                  {currentUserTier !== 'explore' && (
+                    <button
+                      onClick={handleManageBilling}
+                      className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span>Manage Billing</span>
+                    </button>
+                  )}
+                </div>
+                
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <div className="flex items-center space-x-2 mb-2">
+                      <div className={`w-3 h-3 rounded-full ${
+                        currentUserTier === 'explore' ? 'bg-gray-400' :
+                        currentUserTier === 'starter' ? 'bg-orange-500' :
+                        currentUserTier === 'professional' ? 'bg-black' : 'bg-purple-500'
+                      }`}></div>
+                      <span className="font-medium text-gray-900">
+                        {pricingTiers.find(t => t.id === currentUserTier)?.name} Plan
+                      </span>
+                    </div>
+                    {subscription.current_period_end && (
+                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                        <Calendar className="w-4 h-4" />
+                        <span>
+                          {subscription.cancel_at_period_end ? 'Ends' : 'Renews'} on{' '}
+                          {new Date(subscription.current_period_end).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-gray-600">Token Usage</span>
+                      <span className="text-sm font-medium">
+                        {monthlyTokenUsage.toLocaleString()} / {tokenLimit.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          usagePercentage > 90 ? 'bg-red-500' :
+                          usagePercentage > 75 ? 'bg-orange-500' : 'bg-green-500'
+                        }`}
+                        style={{ width: `${Math.min(usagePercentage, 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center space-x-1 text-xs text-gray-500">
+                      <TrendingUp className="w-3 h-3" />
+                      <span>{usagePercentage}% used this period</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {subscription.cancel_at_period_end && (
+                  <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                    <p className="text-sm text-orange-800">
+                      <strong>Subscription Cancelled:</strong> Your plan will end on{' '}
+                      {new Date(subscription.current_period_end).toLocaleDateString()}.
+                      You can reactivate anytime before then.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -423,6 +577,18 @@ export const Billing = () => {
           </div>
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {paymentModalOpen && selectedPaymentPlan && (
+        <PaymentModal
+          isOpen={paymentModalOpen}
+          onClose={() => setPaymentModalOpen(false)}
+          planType={selectedPaymentPlan.type}
+          planName={selectedPaymentPlan.name}
+          planPrice={selectedPaymentPlan.price}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
     </div>
   );
 };
