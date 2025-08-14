@@ -2937,35 +2937,21 @@ app.post('/api/stripe/create-payment-intent', authenticateUser, async (req, res)
         return res.status(400).json({ error: 'Invalid plan type' });
       }
     }
-    // Create payment intent with better configuration to avoid captcha issues
-    const paymentIntentData = {
+    
+    // Create a simple payment intent without fraud detection triggers
+    const paymentIntent = await stripe.paymentIntents.create({
       amount: finalAmount,
       currency: 'usd',
       customer: customerId,
-      automatic_payment_methods: {
-        enabled: true,
-        allow_redirects: 'never' // Prevent redirects that can cause issues
-      },
-      confirmation_method: 'manual',
-      confirm: false,
-      payment_method_options: {
-        card: {
-          request_three_d_secure: 'automatic'
-        }
-      },
+      payment_method_types: ['card'],
       metadata: {
         planType: planType,
+        userId: req.user?.id || '',
         couponCode: couponCode || '',
         couponId: couponId || ''
       }
-    };
+    });
     
-    // Add userId to metadata if available (only for authenticated requests)
-    if (req.user && req.user.id) {
-      paymentIntentData.metadata.userId = req.user.id;
-    }
-    
-    const paymentIntent = await stripe.paymentIntents.create(paymentIntentData);
     res.json({ client_secret: paymentIntent.client_secret });
   } catch (error) {
     console.error('Create payment intent error:', error);

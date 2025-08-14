@@ -146,7 +146,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
 
       const { client_secret } = await paymentIntentResponse.json();
 
-      // Confirm payment with better authentication handling
+      // Simple payment confirmation without complex authentication
       const { error, paymentIntent } = await stripe.confirmCardPayment(client_secret, {
         payment_method: {
           card: cardElement,
@@ -155,7 +155,6 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
             email: user?.email,
           },
         },
-        return_url: window.location.origin + '/billing', // Add return URL for 3D Secure
       });
 
       if (error) {
