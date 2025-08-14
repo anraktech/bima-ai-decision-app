@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Your Stripe Payment Links</title>
+    <style>
+        body { 
+            font-family: Arial; 
+            padding: 50px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { color: #333; margin-bottom: 30px; }
+        .plan {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+        }
+        .plan:hover {
+            border-color: #667eea;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        }
+        button { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; 
+            padding: 15px 30px; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            cursor: pointer; 
+            width: 100%;
+            font-weight: bold;
+        }
+        button:hover { 
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 Your Stripe Payment Links are Ready!</h1>
+        
+        <div class="info">
+            <strong>How this works:</strong><br>
+            1. Click any button below<br>
+            2. You'll go to Stripe's payment page (NO CAPTCHA!)<br>
+            3. Use test card: <code>4242 4242 4242 4242</code><br>
+            4. After payment, you'll return to your dashboard<br>
+            5. Your subscription will be automatically updated!
+        </div>
+
+        <div class="plan">
+            <h2>Starter Plan - $19/month</h2>
+            <p>250,000 tokens per month</p>
+            <button onclick="goToPayment('starter')">
+                Test Starter Payment Link
+            </button>
+        </div>
+
+        <div class="plan">
+            <h2>Professional Plan - $49/month</h2>
+            <p>750,000 tokens per month</p>
+            <button onclick="goToPayment('professional')">
+                Test Professional Payment Link
+            </button>
+        </div>
+
+        <div class="plan">
+            <h2>Enterprise Plan - $199/month</h2>
+            <p>3,000,000 tokens per month</p>
+            <button onclick="goToPayment('enterprise')">
+                Test Enterprise Payment Link
+            </button>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // Your actual payment links
+        const PAYMENT_LINKS = {
+            starter: 'https://buy.stripe.com/6oUeVdgEdchp5MX3ed3cc00',
+            professional: 'https://buy.stripe.com/6oUcN5bjTepx4IT4ih3cc01',
+            enterprise: 'https://buy.stripe.com/3cI5kDgEd6X5fnx8yx3cc02'
+        };
+
+        function goToPayment(plan) {
+            // Add test user tracking
+            const userId = 1; // In production, this would be the actual user ID
+            const userEmail = 'test@example.com';
+            
+            // Build URL with tracking
+            const paymentUrl = `${PAYMENT_LINKS[plan]}?client_reference_id=${userId}&prefilled_email=${encodeURIComponent(userEmail)}`;
+            
+            console.log('Redirecting to:', paymentUrl);
+            
+            // Show where we're going
+            document.getElementById('result').innerHTML = `
+                <div class="success">
+                    <strong>Redirecting to Stripe...</strong><br>
+                    Plan: ${plan}<br>
+                    URL: ${PAYMENT_LINKS[plan]}<br>
+                    User ID: ${userId}
+                </div>
+            `;
+            
+            // Redirect after 2 seconds
+            setTimeout(() => {
+                window.location.href = paymentUrl;
+            }, 2000);
+        }
+
+        // Check if returning from payment
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('payment') === 'success') {
+            document.getElementById('result').innerHTML = `
+                <div class="success">
+                    ✅ <strong>Payment Successful!</strong><br>
+                    Your subscription has been upgraded.<br>
+                    Session ID: ${params.get('session_id') || 'N/A'}
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
