@@ -27,6 +27,7 @@ export function Dashboard() {
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const payment = urlParams.get('payment');
+    // Handle both 'session_id' and 'session' parameters from Stripe
     const sessionId = urlParams.get('session_id') || urlParams.get('session');
     
     if (payment === 'success') {
