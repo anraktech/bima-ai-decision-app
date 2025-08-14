@@ -14,6 +14,7 @@ import Groq from 'groq-sdk';
 import multer from 'multer';
 import mammoth from 'mammoth';
 import Stripe from 'stripe';
+import { sendAdminNotification, sendWelcomeEmail, testEmailConfiguration } from './emailService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -2880,6 +2881,19 @@ async function handleCheckoutCompleted(session) {
     }
     
     console.log(`✅ Updated user ${userId} subscription_tier to ${planType} in users table`);
+    
+    // Get user details for email
+    const user = db.prepare('SELECT email, name FROM users WHERE id = ?').get(userId);
+    if (user) {
+      // Send email notifications
+      const amountPaid = session.amount_total || 0;
+      
+      // Send admin notification
+      await sendAdminNotification(user.email, planType, amountPaid);
+      
+      // Send welcome email to customer
+      await sendWelcomeEmail(user.email, user.name, planType);
+    }
 
     // Also update or create subscription record in subscriptions table
     const existingSub = db.prepare('SELECT id FROM subscriptions WHERE user_id = ? AND status = ?').get(userId, 'active');
@@ -3336,8 +3350,18 @@ async function handlePaymentFailure(invoice) {
   }
 }
 
+// Test email configuration on startup
+testEmailConfiguration().then(result => {
+  if (result) {
+    console.log('📧 Email service ready - notifications will be sent');
+  } else {
+    console.log('⚠️ Email service not configured - notifications disabled');
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Railway server running on http://localhost:${PORT}`);
   console.log('✅ OpenRouter integration deployed - 25 premium models including GPT-5, Gemini 2.5 Pro, Grok 4');
+  console.log('✅ Email notifications enabled for new subscriptions');
 });
