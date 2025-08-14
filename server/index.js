@@ -298,25 +298,48 @@ app.post('/api/stripe/create-customer', authenticateUser, async (req, res) => {
   }
 });
 
-// Coupon validation endpoint
+// Coupon validation endpoint - uses actual Stripe promotion codes
 app.post('/api/stripe/validate-coupon', authenticateUser, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  
   try {
     const { code } = req.body;
     
-    // Define coupon codes and their discounts
-    const validCoupons = {
-      'WELCOME10': 10,    // 10% off
-      'FRIEND20': 20,     // 20% off
-      'SPECIAL50': 50,    // 50% off
-      'HOLIDAY25': 25,    // 25% off
-      'STUDENT15': 15     // 15% off
-    };
-
-    const discount = validCoupons[code.toUpperCase()];
-    
-    if (discount) {
-      res.json({ valid: true, discount });
-    } else {
+    // Try to retrieve the promotion code from Stripe
+    try {
+      const promotionCodes = await stripe.promotionCodes.list({
+        code: code.toUpperCase(),
+        limit: 1
+      });
+      
+      if (promotionCodes.data.length > 0) {
+        const promoCode = promotionCodes.data[0];
+        
+        // Check if the promotion code is active
+        if (promoCode.active) {
+          const coupon = promoCode.coupon;
+          
+          // Get the discount percentage or amount
+          const discount = coupon.percent_off || 0;
+          const amountOff = coupon.amount_off ? coupon.amount_off / 100 : 0;
+          
+          res.json({ 
+            valid: true, 
+            discount: discount,
+            amountOff: amountOff,
+            promoCodeId: promoCode.id,
+            couponId: coupon.id
+          });
+        } else {
+          res.json({ valid: false, discount: 0 });
+        }
+      } else {
+        res.json({ valid: false, discount: 0 });
+      }
+    } catch (stripeError) {
+      console.error('Stripe coupon lookup error:', stripeError);
       res.json({ valid: false, discount: 0 });
     }
   } catch (error) {
@@ -330,7 +353,7 @@ app.post('/api/stripe/create-payment-intent', authenticateUser, async (req, res)
     return res.status(500).json({ error: 'Stripe not configured' });
   }
   try {
-    const { planType, customerId, amount, couponCode } = req.body;
+    const { planType, customerId, amount, couponCode, couponId } = req.body;
     
     // If custom amount is provided (with coupon), use it
     let finalAmount = amount;
@@ -349,7 +372,8 @@ app.post('/api/stripe/create-payment-intent', authenticateUser, async (req, res)
       }
     }
 
-    const paymentIntent = await stripe.paymentIntents.create({
+    // Create payment intent with the adjusted amount
+    const paymentIntentData = {
       amount: finalAmount,
       currency: 'usd',
       customer: customerId,
@@ -357,8 +381,13 @@ app.post('/api/stripe/create-payment-intent', authenticateUser, async (req, res)
         userId: req.user.id,
         planType: planType,
         couponCode: couponCode || '',
-      },
-    });
+        couponId: couponId || ''
+      }
+    };
+
+    // If there's a coupon, we'll apply it during subscription creation
+    // For now, the payment intent uses the discounted amount
+    const paymentIntent = await stripe.paymentIntents.create(paymentIntentData);
 
     res.json({ client_secret: paymentIntent.client_secret });
   } catch (error) {

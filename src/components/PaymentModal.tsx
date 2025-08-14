@@ -44,7 +44,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [couponCode, setCouponCode] = useState('');
-  const [couponApplied, setCouponApplied] = useState<{ code: string; discount: number } | null>(null);
+  const [couponApplied, setCouponApplied] = useState<{ code: string; discount: number; couponId?: string; amountOff?: number } | null>(null);
   const [finalPrice, setFinalPrice] = useState(planPrice);
 
   const applyCoupon = async () => {
@@ -61,12 +61,18 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       });
 
       if (response.ok) {
-        const { valid, discount } = await response.json();
+        const { valid, discount, couponId, amountOff } = await response.json();
         if (valid) {
-          setCouponApplied({ code: couponCode, discount });
-          setFinalPrice(Math.max(0, planPrice - (planPrice * discount / 100)));
+          setCouponApplied({ code: couponCode, discount, couponId, amountOff });
+          // Calculate final price based on percentage or fixed amount discount
+          if (amountOff && amountOff > 0) {
+            setFinalPrice(Math.max(0, planPrice - amountOff));
+          } else {
+            setFinalPrice(Math.max(0, planPrice - (planPrice * discount / 100)));
+          }
+          setErrorMessage('');
         } else {
-          setErrorMessage('Invalid coupon code');
+          setErrorMessage('Invalid or expired coupon code');
         }
       } else {
         setErrorMessage('Failed to validate coupon code');
@@ -130,7 +136,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
           planType,
           customerId: customer_id,
           amount: Math.round(finalPrice * 100), // Convert to cents
-          couponCode: couponApplied?.code
+          couponCode: couponApplied?.code,
+          couponId: couponApplied?.couponId
         })
       });
 
