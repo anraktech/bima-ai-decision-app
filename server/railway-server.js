@@ -2817,11 +2817,13 @@ async function handleCheckoutCompleted(session) {
     if (!planType) {
       // Try to detect from the amount paid
       const amountTotal = session.amount_total;
-      if (amountTotal === 1900) {
+      if (amountTotal === 1000) { // $10 Starter
         planType = 'starter';
-      } else if (amountTotal === 4900) {
-        planType = 'professional';
-      } else if (amountTotal === 19900) {
+      } else if (amountTotal === 1900) { // Legacy $19 Starter
+        planType = 'starter';
+      } else if (amountTotal === 4900) { // Legacy $49 Professional (now Starter)
+        planType = 'starter';
+      } else if (amountTotal === 50000) { // $500 Enterprise one-time
         planType = 'enterprise';
       } else {
         // Try to get from line items description
@@ -2845,9 +2847,9 @@ async function handleCheckoutCompleted(session) {
 
     // Define plan limits
     const planLimits = {
-      starter: 250000,
-      professional: 750000,
-      enterprise: 3000000
+      starter: 750000,
+      professional: 750000, // Legacy - same as starter
+      enterprise: 999999999 // Unlimited with own keys
     };
 
     const tokenLimit = planLimits[planType];

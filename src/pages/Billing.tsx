@@ -76,64 +76,51 @@ export const Billing = () => {
         'Access to all AI models',
         'Basic conversation history',
         'Community support',
-        'No monthly commitment',
         'Standard processing speed'
       ]
     },
     {
       id: 'starter',
-      name: 'Starter Pack',
-      price: 19,
-      tokens: '250,000',
-      overageRate: '$0.76 per 10K',
+      name: 'Starter',
+      price: 10,
+      tokens: '750,000',
+      overageRate: '$0.50 per 10K',
       icon: <Rocket className="w-6 h-6" />,
       popular: true,
       color: 'orange',
       features: [
-        '250,000 tokens included',
+        '750,000 tokens/month',
         'All AI models available',
         'Priority processing',
-        'Extended conversation history',
-        'Email support',
-        'Usage analytics dashboard'
-      ]
-    },
-    {
-      id: 'professional',
-      name: 'Professional',
-      price: 49,
-      tokens: '750,000',
-      overageRate: '$0.65 per 10K',
-      icon: <BarChart3 className="w-6 h-6" />,
-      color: 'black',
-      features: [
-        '750,000 tokens included',
         'Advanced analytics & insights',
         'Conversation history export',
         'API access & webhooks',
         'Custom model configurations',
         'Priority email support',
-        'Team collaboration tools'
+        'Team collaboration tools',
+        'Usage analytics dashboard'
       ]
     },
     {
       id: 'enterprise',
       name: 'Enterprise',
-      price: 199,
-      tokens: '3,000,000',
-      overageRate: '$0.50 per 10K',
+      price: 500,
+      tokens: 'Unlimited*',
+      overageRate: 'Use your own API keys',
       icon: <Building2 className="w-6 h-6" />,
-      badge: 'Most Popular',
-      color: 'purple',
+      badge: 'One-Time Payment',
+      color: 'black',
       features: [
-        '3M tokens included',
-        'Custom model endpoints',
+        'Bring your own API keys',
+        'Unlimited tokens with your keys',
+        'White-label options',
+        'Custom branding',
         'Advanced team management',
-        'Dedicated support manager',
-        'SSO & enterprise security',
+        'Dedicated support',
         'Custom integrations',
-        'SLA guarantees',
-        'White-label options'
+        'Source code access',
+        'Lifetime updates',
+        'Priority feature requests'
       ]
     }
   ];
@@ -156,9 +143,9 @@ export const Billing = () => {
           const userTier = user?.subscription_tier || 'explore';
           const tierLimits = {
             explore: 50000,
-            starter: 250000,
-            professional: 750000,
-            enterprise: 3000000
+            starter: 750000,
+            professional: 750000, // Legacy - same as starter now
+            enterprise: 999999999 // Unlimited with own keys
           };
           
           const periodStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -227,9 +214,9 @@ export const Billing = () => {
           
           const tierLimits = {
             explore: 50000,
-            starter: 250000,
-            professional: 750000,
-            enterprise: 3000000
+            starter: 750000,
+            professional: 750000, // Legacy - same as starter now
+            enterprise: 999999999 // Unlimited with own keys
           };
           
           const periodStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -392,7 +379,7 @@ export const Billing = () => {
         </div>
 
 {/* Pricing Grid */}
-        <div className="grid lg:grid-cols-4 gap-8 mb-16">
+        <div className="grid lg:grid-cols-3 gap-8 mb-16">
           {pricingTiers.map((tier) => (
             <div
               key={tier.id}
@@ -436,18 +423,28 @@ export const Billing = () => {
                     <span className="text-4xl font-bold text-gray-900">
                       ${tier.price}
                     </span>
-                    {tier.price > 0 && (
+                    {tier.price > 0 && tier.id !== 'enterprise' && (
                       <span className="text-gray-500 ml-1">
 /mo
                       </span>
                     )}
+                    {tier.id === 'enterprise' && (
+                      <span className="text-gray-500 ml-1">
+once
+                      </span>
+                    )}
                   </div>
                   <p className="text-gray-600">
-                    <strong>{tier.tokens}</strong> tokens{tier.price > 0 ? '/month' : ''}
+                    <strong>{tier.tokens}</strong> {tier.id === 'enterprise' ? 'with your API keys' : tier.price > 0 ? 'tokens/month' : 'tokens'}
                   </p>
-                  {tier.overageRate !== 'N/A' && (
+                  {tier.overageRate !== 'N/A' && tier.id !== 'enterprise' && (
                     <p className="text-sm text-gray-500 mt-2">
                       {tier.overageRate} beyond allowance
+                    </p>
+                  )}
+                  {tier.id === 'enterprise' && (
+                    <p className="text-sm text-gray-500 mt-2">
+                      {tier.overageRate}
                     </p>
                   )}
                 </div>
@@ -482,15 +479,24 @@ export const Billing = () => {
                     <span>Current Plan</span>
                   ) : (
                     <>
-                      <span>{tier.price === 0 ? 'Get Started Free' : 'Upgrade Now'}</span>
+                      <span>
+                        {tier.price === 0 ? 'Get Started Free' : 
+                         tier.id === 'enterprise' ? 'Buy Lifetime Access' : 
+                         'Upgrade Now'}
+                      </span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
 
-                {tier.price > 0 && (
+                {tier.price > 0 && tier.id !== 'enterprise' && (
                   <p className="text-xs text-gray-500 text-center mt-3">
                     Cancel anytime • No setup fees
+                  </p>
+                )}
+                {tier.id === 'enterprise' && (
+                  <p className="text-xs text-gray-500 text-center mt-3">
+                    One-time payment • Lifetime access
                   </p>
                 )}
               </div>
@@ -518,14 +524,15 @@ export const Billing = () => {
               </thead>
               <tbody>
                 {[
-                  { feature: 'Monthly Token Allowance', values: ['50K', '250K', '750K', '3M'] },
-                  { feature: 'AI Model Access', values: [true, true, true, true] },
-                  { feature: 'Priority Processing', values: [false, true, true, true] },
-                  { feature: 'Advanced Analytics', values: [false, false, true, true] },
-                  { feature: 'API Access', values: [false, false, true, true] },
-                  { feature: 'Team Management', values: [false, false, false, true] },
-                  { feature: 'Dedicated Support', values: [false, false, false, true] },
-                  { feature: 'Custom Integrations', values: [false, false, false, true] },
+                  { feature: 'Monthly Token Allowance', values: ['50K', '750K', 'Unlimited*'] },
+                  { feature: 'AI Model Access', values: [true, true, true] },
+                  { feature: 'Priority Processing', values: [false, true, true] },
+                  { feature: 'Advanced Analytics', values: [false, true, true] },
+                  { feature: 'API Access', values: [false, true, true] },
+                  { feature: 'Bring Your Own Keys', values: [false, false, true] },
+                  { feature: 'White-Label Options', values: [false, false, true] },
+                  { feature: 'Lifetime Updates', values: [false, false, true] },
+                  { feature: 'Source Code Access', values: [false, false, true] },
                 ].map((row, index) => (
                   <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                     <td className="py-4 px-6 font-medium text-gray-900">{row.feature}</td>
@@ -607,9 +614,8 @@ export const Billing = () => {
               onClick={() => {
                 // Direct payment link redirect - no components, no complexity
                 const links = {
-                  starter: 'https://buy.stripe.com/6oUeVdgEdchp5MX3ed3cc00',
-                  professional: 'https://buy.stripe.com/6oUcN5bjTepx4IT4ih3cc01',
-                  enterprise: 'https://buy.stripe.com/3cI5kDgEd6X5fnx8yx3cc02'
+                  starter: 'https://buy.stripe.com/6oUeVdgEdchp5MX3ed3cc00', // Update this to $10 in Stripe
+                  enterprise: 'https://buy.stripe.com/3cI5kDgEd6X5fnx8yx3cc02' // Update this to $500 one-time in Stripe
                 };
                 const paymentLink = links[selectedPaymentPlan.type as keyof typeof links];
                 if (paymentLink) {
