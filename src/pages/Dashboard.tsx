@@ -5,6 +5,8 @@ import { SetupPanel } from '../components/SetupPanel';
 import { ConversationView } from '../components/ConversationView';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useUsageMonitor } from '../hooks/useUsageMonitor';
+import { UsageLimitModal } from '../components/UsageLimitModal';
 import { Database, LogOut, User, Users, Globe, Brain, Mail, Phone, MapPin, FileText, HelpCircle, CreditCard, Menu, X, Flame } from 'lucide-react';
 
 export function Dashboard() {
@@ -15,6 +17,9 @@ export function Dashboard() {
   const [showSupport, setShowSupport] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Usage monitoring for over-limit users
+  const { showLimitModal, closeModal, getUsageStatus } = useUsageMonitor();
 
   const handleLogout = () => {
     logout();
@@ -533,6 +538,18 @@ export function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Usage Limit Modal */}
+      {showLimitModal && getUsageStatus() && (
+        <UsageLimitModal
+          isOpen={showLimitModal}
+          onClose={closeModal}
+          currentUsage={getUsageStatus()!.currentUsage}
+          usageLimit={getUsageStatus()!.usageLimit}
+          currentPlan={getUsageStatus()!.currentPlan}
+          overageAmount={getUsageStatus()!.overageAmount}
+        />
       )}
     </div>
   );
