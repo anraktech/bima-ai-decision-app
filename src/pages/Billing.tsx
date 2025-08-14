@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { PaymentLinkButton } from '../components/PaymentLinkButton';
+// Removed PaymentLinkButton import - using direct implementation
 import { API_URL } from '../config/api';
 import { 
   Check, 
@@ -391,6 +391,23 @@ export const Billing = () => {
           )}
         </div>
 
+        {/* Debug Test Button - Remove after testing */}
+        <div className="mb-8 p-4 bg-yellow-100 border-2 border-yellow-500 rounded-lg">
+          <p className="text-sm font-bold mb-2">TEST DIRECT PAYMENT (Remove after testing)</p>
+          <div className="flex gap-4">
+            <button
+              onClick={() => {
+                const testUrl = 'https://buy.stripe.com/6oUeVdgEdchp5MX3ed3cc00?client_reference_id=test&prefilled_email=test@example.com';
+                console.log('TEST: Direct redirect to Starter plan:', testUrl);
+                window.location.href = testUrl;
+              }}
+              className="px-4 py-2 bg-blue-500 text-white rounded"
+            >
+              Test Starter Payment
+            </button>
+          </div>
+        </div>
+
         {/* Pricing Grid */}
         <div className="grid lg:grid-cols-4 gap-8 mb-16">
           {pricingTiers.map((tier) => (
@@ -603,11 +620,35 @@ export const Billing = () => {
             <p className="text-gray-600 mb-6">
               You'll be redirected to Stripe's secure checkout page.
             </p>
-            <PaymentLinkButton
-              planType={selectedPaymentPlan.type}
-              planName={selectedPaymentPlan.name}
-              planPrice={selectedPaymentPlan.price}
-            />
+            <button
+              onClick={() => {
+                // Direct payment link redirect - no components, no complexity
+                const links = {
+                  starter: 'https://buy.stripe.com/6oUeVdgEdchp5MX3ed3cc00',
+                  professional: 'https://buy.stripe.com/6oUcN5bjTepx4IT4ih3cc01',
+                  enterprise: 'https://buy.stripe.com/3cI5kDgEd6X5fnx8yx3cc02'
+                };
+                const paymentLink = links[selectedPaymentPlan.type as keyof typeof links];
+                if (paymentLink) {
+                  const finalUrl = `${paymentLink}?client_reference_id=${user.id}&prefilled_email=${encodeURIComponent(user.email)}`;
+                  console.log('===== BILLING PAGE DIRECT PAYMENT =====');
+                  console.log('Plan Type:', selectedPaymentPlan.type);
+                  console.log('Payment Link:', paymentLink);
+                  console.log('User ID:', user.id);
+                  console.log('User Email:', user.email);
+                  console.log('Final URL:', finalUrl);
+                  console.log('Redirecting NOW...');
+                  // Use replace to prevent back button issues
+                  window.location.replace(finalUrl);
+                } else {
+                  console.error('No payment link for plan:', selectedPaymentPlan.type);
+                  alert('Error: Invalid plan selected. Please refresh and try again.');
+                }
+              }}
+              className="w-full py-3 px-6 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all"
+            >
+              Pay ${selectedPaymentPlan.price}/month with Stripe
+            </button>
             <button
               onClick={() => setShowPaymentButton(false)}
               className="w-full mt-3 py-2 text-gray-600 hover:text-gray-800"
