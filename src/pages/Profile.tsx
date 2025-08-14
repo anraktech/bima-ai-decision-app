@@ -416,29 +416,6 @@ export const Profile = () => {
                   
                   <div className="lg:col-span-1 space-y-4 sm:space-y-6">
                     <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
-                      <h3 className="text-base sm:text-lg font-semibold text-black mb-3 sm:mb-4">Payment Method</h3>
-                      <p className="text-sm text-gray-600 mb-3 sm:mb-4">No payment method added yet</p>
-                      <button className="flex items-center space-x-2 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base w-full sm:w-auto justify-center sm:justify-start">
-                        <CreditCard className="w-4 h-4" />
-                        <span>Add Payment Method</span>
-                      </button>
-                    </div>
-
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
-                      <h3 className="text-base sm:text-lg font-semibold text-black mb-3 sm:mb-4">Billing History</h3>
-                      <p className="text-sm text-gray-600 mb-3 sm:mb-4">Your recent invoices and billing history</p>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-black">December 2024</p>
-                            <p className="text-xs text-gray-500">Free tier - No charges</p>
-                          </div>
-                          <span className="text-sm font-bold text-green-600 flex-shrink-0">$0.00</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
                       <h3 className="text-base sm:text-lg font-semibold text-black mb-3 sm:mb-4">Quick Actions</h3>
                       <div className="space-y-3">
                         <button 
@@ -448,9 +425,12 @@ export const Profile = () => {
                           <span>View All Plans</span>
                           <ChevronRight className="w-4 h-4" />
                         </button>
-                        <button className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 sm:py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm sm:text-base">
-                          <FileText className="w-4 h-4" />
-                          <span>Download Usage Report</span>
+                        <button 
+                          onClick={() => navigate('/billing')}
+                          className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 sm:py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm sm:text-base"
+                        >
+                          <CreditCard className="w-4 h-4" />
+                          <span>Upgrade Plan</span>
                         </button>
                       </div>
                     </div>

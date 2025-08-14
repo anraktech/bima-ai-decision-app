@@ -74,9 +74,9 @@ export const useBilling = () => {
 
 const TIER_CONFIGS = {
   explore: { tokens: 50000, overageRate: 0, price: 0 },
-  starter: { tokens: 250000, overageRate: 0.76, price: 19 },
-  professional: { tokens: 750000, overageRate: 0.65, price: 49 },
-  enterprise: { tokens: 3000000, overageRate: 0.50, price: 199 }
+  starter: { tokens: 750000, overageRate: 0.50, price: 10 },
+  professional: { tokens: 750000, overageRate: 0.50, price: 10 }, // Legacy - same as starter
+  enterprise: { tokens: 999999999, overageRate: 0, price: 500 }
 };
 
 export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
