@@ -2865,8 +2865,8 @@ app.post('/api/stripe/create-customer', authenticateUser, async (req, res) => {
   }
 });
 
-// Coupon validation endpoint - uses actual Stripe promotion codes
-app.post('/api/stripe/validate-coupon', authenticateUser, async (req, res) => {
+// Coupon validation endpoint - uses actual Stripe promotion codes (no auth required)
+app.post('/api/stripe/validate-coupon', async (req, res) => {
   if (!stripe) {
     return res.status(500).json({ error: 'Stripe not configured' });
   }
