@@ -1,10 +1,10 @@
 // Stripe Payment Links - The simplest solution!
-// Replace these with your actual payment links from Stripe Dashboard
+// These are your LIVE payment links from Stripe Dashboard
 
 export const STRIPE_PAYMENT_LINKS = {
-  starter: 'https://buy.stripe.com/YOUR_STARTER_LINK_HERE',
-  professional: 'https://buy.stripe.com/YOUR_PROFESSIONAL_LINK_HERE', 
-  enterprise: 'https://buy.stripe.com/YOUR_ENTERPRISE_LINK_HERE'
+  starter: 'https://buy.stripe.com/6oUeVdgEdchp5MX3ed3cc00',
+  professional: 'https://buy.stripe.com/6oUcN5bjTepx4IT4ih3cc01', 
+  enterprise: 'https://buy.stripe.com/3cI5kDgEd6X5fnx8yx3cc02'
 };
 
 // To get payment links:
