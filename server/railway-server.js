@@ -2994,12 +2994,16 @@ app.post('/api/stripe/validate-coupon', async (req, res) => {
 });
 
 // Create Stripe Checkout Session (NO MORE CAPTCHA ISSUES!)
-app.post('/api/stripe/create-checkout-session', authenticateUser, async (req, res) => {
+app.post('/api/stripe/create-checkout-session', async (req, res) => {
   if (!stripe) {
     return res.status(500).json({ error: 'Stripe not configured' });
   }
   try {
-    const { planType, couponCode, successUrl, cancelUrl } = req.body;
+    const { planType, userEmail, userName, userId, successUrl, cancelUrl } = req.body;
+    
+    if (!planType || !userEmail || !userId) {
+      return res.status(400).json({ error: 'Missing required fields: planType, userEmail, userId' });
+    }
     
     // Define plan amounts and names
     const plans = {
@@ -3017,7 +3021,7 @@ app.post('/api/stripe/create-checkout-session', authenticateUser, async (req, re
     let customerId;
     try {
       const customers = await stripe.customers.list({
-        email: req.user.email,
+        email: userEmail,
         limit: 1,
       });
       
@@ -3025,8 +3029,8 @@ app.post('/api/stripe/create-checkout-session', authenticateUser, async (req, re
         customerId = customers.data[0].id;
       } else {
         const customer = await stripe.customers.create({
-          email: req.user.email,
-          name: req.user.name,
+          email: userEmail,
+          name: userName || userEmail,
         });
         customerId = customer.id;
       }
@@ -3052,30 +3056,14 @@ app.post('/api/stripe/create-checkout-session', authenticateUser, async (req, re
           quantity: 1,
         },
       ],
-      success_url: successUrl || `${process.env.CLIENT_URL || 'https://bima-ai-decision-app-nzwf.vercel.app'}/dashboard?payment=success`,
-      cancel_url: cancelUrl || `${process.env.CLIENT_URL || 'https://bima-ai-decision-app-nzwf.vercel.app'}/dashboard?payment=cancelled`,
+      success_url: successUrl || `${process.env.CLIENT_URL || 'https://bima-ai-decision-app-production.up.railway.app'}/dashboard?payment=success`,
+      cancel_url: cancelUrl || `${process.env.CLIENT_URL || 'https://bima-ai-decision-app-production.up.railway.app'}/dashboard?payment=cancelled`,
+      allow_promotion_codes: true, // Enable coupon codes in Stripe checkout
       metadata: {
         planType: planType,
-        userId: req.user?.id || '',
-        couponCode: couponCode || ''
+        userId: userId
       }
     };
-    
-    // Apply coupon if provided
-    if (couponCode) {
-      try {
-        const promotionCodes = await stripe.promotionCodes.list({
-          code: couponCode.toUpperCase(),
-          limit: 1
-        });
-        
-        if (promotionCodes.data.length > 0 && promotionCodes.data[0].active) {
-          sessionData.discounts = [{ promotion_code: promotionCodes.data[0].id }];
-        }
-      } catch (couponError) {
-        console.error('Coupon error (proceeding without):', couponError);
-      }
-    }
     
     const session = await stripe.checkout.sessions.create(sessionData);
     
