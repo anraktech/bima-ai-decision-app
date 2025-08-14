@@ -18,6 +18,7 @@ import { MultiplayerViewer } from './pages/MultiplayerViewer';
 import { MaxMode } from './pages/MaxMode';
 import { MaxConversation } from './pages/MaxConversation';
 import { Billing } from './pages/Billing';
+import { AdminLogin } from './pages/AdminLogin';
 import { Admin4921 } from './pages/Admin4921';
 import { PageTransition } from './components/PageTransition';
 
@@ -177,10 +178,9 @@ function App() {
                   <Billing />
                 </PrivateRoute>
               } />
-              <Route path="/admin4921" element={
-                <AdminRoute>
-                  <Admin4921 />
-                </AdminRoute>
+              <Route path="/admin4921" element={<AdminLogin />} />
+              <Route path="/admin4921/dashboard" element={
+                <Admin4921 />
               } />
             </Routes>
           </PageTransition>

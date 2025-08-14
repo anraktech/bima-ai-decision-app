@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config/api';
 import { 
   Users, 
@@ -16,7 +15,8 @@ import {
   Crown,
   Rocket,
   Building2,
-  Sparkles
+  Sparkles,
+  LogOut
 } from 'lucide-react';
 
 interface User {
@@ -30,7 +30,6 @@ interface User {
 }
 
 export const Admin4921 = () => {
-  const { user, token } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
@@ -47,9 +46,23 @@ export const Admin4921 = () => {
     enterprisePlans: 0
   });
 
-  // Load users when component mounts
+  // Check admin auth and load users
   useEffect(() => {
-    console.log('Admin access granted for:', user?.email);
+    const adminToken = localStorage.getItem('adminToken');
+    const adminUser = localStorage.getItem('adminUser');
+    
+    if (!adminToken || !adminUser) {
+      navigate('/admin4921');
+      return;
+    }
+    
+    const user = JSON.parse(adminUser);
+    if (user.email !== 'kapil@anrak.io') {
+      navigate('/admin4921');
+      return;
+    }
+    
+    console.log('Admin access granted for:', user.email);
     setIsCheckingAuth(false);
     fetchUsers();
   }, []);
@@ -57,13 +70,14 @@ export const Admin4921 = () => {
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-      console.log('Fetching users with token:', token);
+      const adminToken = localStorage.getItem('adminToken');
+      console.log('Fetching users with admin token');
       console.log('API URL:', `${API_URL}/api/admin/users`);
       
       const response = await fetch(`${API_URL}/api/admin/users`, {
         method: 'GET',
         headers: { 
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${adminToken}`,
           'X-Admin-Key': 'anrak-admin-2025',
           'Content-Type': 'application/json'
         }
@@ -121,12 +135,13 @@ export const Admin4921 = () => {
   const updateUserPlan = async (userId: number, newPlan: string) => {
     setIsUpdating(true);
     setUpdateMessage(null);
+    const adminToken = localStorage.getItem('adminToken');
 
     try {
       const response = await fetch(`${API_URL}/api/admin/update-user-plan`, {
         method: 'POST',
         headers: { 
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${adminToken}`,
           'Content-Type': 'application/json',
           'X-Admin-Key': 'anrak-admin-2025'
         },
@@ -208,10 +223,15 @@ export const Admin4921 = () => {
               <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             </div>
             <button
-              onClick={() => navigate('/dashboard')}
-              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+              onClick={() => {
+                localStorage.removeItem('adminToken');
+                localStorage.removeItem('adminUser');
+                navigate('/admin4921');
+              }}
+              className="flex items-center space-x-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
             >
-              Back to Dashboard
+              <LogOut className="w-4 h-4" />
+              <span>Logout</span>
             </button>
           </div>
         </div>
