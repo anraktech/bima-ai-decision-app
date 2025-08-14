@@ -3393,6 +3393,82 @@ app.post('/api/admin/update-subscription', (req, res) => {
   }
 });
 
+// Admin endpoint to get all users
+app.get('/api/admin/users', authenticateToken, (req, res) => {
+  // Check if user is admin
+  const adminEmail = 'kapil@anrak.io';
+  const adminKey = req.headers['x-admin-key'];
+  
+  if (req.user.email !== adminEmail || adminKey !== 'anrak-admin-2025') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    const users = db.prepare(`
+      SELECT 
+        id, 
+        email, 
+        name, 
+        subscription_tier, 
+        created_at
+      FROM users
+      ORDER BY created_at DESC
+    `).all();
+    
+    res.json(users);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Admin endpoint to update user plan
+app.post('/api/admin/update-user-plan', authenticateToken, (req, res) => {
+  // Check if user is admin
+  const adminEmail = 'kapil@anrak.io';
+  const adminKey = req.headers['x-admin-key'];
+  
+  if (req.user.email !== adminEmail || adminKey !== 'anrak-admin-2025') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  
+  const { userId, plan } = req.body;
+  
+  if (!userId || !plan) {
+    return res.status(400).json({ error: 'Missing userId or plan' });
+  }
+  
+  try {
+    const result = db.prepare('UPDATE users SET subscription_tier = ? WHERE id = ?').run(plan, userId);
+    
+    if (result.changes > 0) {
+      console.log(`✅ Admin updated user ${userId} to ${plan} plan`);
+      
+      // Get updated user info
+      const updatedUser = db.prepare('SELECT email, name FROM users WHERE id = ?').get(userId);
+      
+      // Send notification email to admin
+      if (updatedUser) {
+        sendAdminNotification(
+          updatedUser.email, 
+          plan, 
+          plan === 'starter' ? 1000 : plan === 'enterprise' ? 50000 : 0
+        ).catch(err => console.error('Email notification failed:', err));
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `User updated to ${plan} plan`
+      });
+    } else {
+      res.status(404).json({ error: 'User not found' });
+    }
+  } catch (error) {
+    console.error('Error updating user plan:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Railway server running on http://localhost:${PORT}`);

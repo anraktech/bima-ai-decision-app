@@ -18,7 +18,7 @@ import { MultiplayerViewer } from './pages/MultiplayerViewer';
 import { MaxMode } from './pages/MaxMode';
 import { MaxConversation } from './pages/MaxConversation';
 import { Billing } from './pages/Billing';
-import { AdminDashboard } from './pages/AdminDashboard';
+import { Admin4921 } from './pages/Admin4921';
 import { PageTransition } from './components/PageTransition';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -153,7 +153,7 @@ function App() {
                   <Billing />
                 </PrivateRoute>
               } />
-              <Route path="/admin4921" element={<AdminDashboard />} />
+              <Route path="/admin4921" element={<Admin4921 />} />
             </Routes>
           </PageTransition>
         </BillingProvider>
