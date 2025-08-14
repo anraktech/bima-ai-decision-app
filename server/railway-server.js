@@ -2809,6 +2809,154 @@ async function handlePaymentSuccess(invoice) {
   }
 }
 
+// Stripe endpoints
+app.post('/api/stripe/create-customer', authenticateUser, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  try {
+    const { email, name } = req.body;
+    
+    // Check if customer already exists
+    const existingCustomers = await stripe.customers.list({
+      email: email,
+      limit: 1,
+    });
+    if (existingCustomers.data.length > 0) {
+      return res.json({ customer_id: existingCustomers.data[0].id });
+    }
+    // Create new customer
+    const customer = await stripe.customers.create({
+      email: email,
+      name: name,
+      metadata: {
+        userId: req.user.id,
+      },
+    });
+    res.json({ customer_id: customer.id });
+  } catch (error) {
+    console.error('Create customer error:', error);
+    res.status(500).json({ error: 'Failed to create customer' });
+  }
+});
+
+// Coupon validation endpoint - uses actual Stripe promotion codes
+app.post('/api/stripe/validate-coupon', authenticateUser, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  
+  try {
+    const { code } = req.body;
+    
+    // Try to retrieve the promotion code from Stripe
+    try {
+      const promotionCodes = await stripe.promotionCodes.list({
+        code: code.toUpperCase(),
+        limit: 1
+      });
+      
+      if (promotionCodes.data.length > 0) {
+        const promoCode = promotionCodes.data[0];
+        
+        // Check if the promotion code is active
+        if (promoCode.active) {
+          const coupon = promoCode.coupon;
+          
+          // Get the discount percentage or amount
+          const discount = coupon.percent_off || 0;
+          const amountOff = coupon.amount_off ? coupon.amount_off / 100 : 0;
+          
+          res.json({ 
+            valid: true, 
+            discount: discount,
+            amountOff: amountOff,
+            promoCodeId: promoCode.id,
+            couponId: coupon.id
+          });
+        } else {
+          res.json({ valid: false, discount: 0 });
+        }
+      } else {
+        res.json({ valid: false, discount: 0 });
+      }
+    } catch (stripeError) {
+      console.error('Stripe coupon lookup error:', stripeError);
+      res.json({ valid: false, discount: 0 });
+    }
+  } catch (error) {
+    console.error('Coupon validation error:', error);
+    res.status(500).json({ error: 'Failed to validate coupon' });
+  }
+});
+
+app.post('/api/stripe/create-payment-intent', authenticateUser, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  try {
+    const { planType, customerId, amount, couponCode, couponId } = req.body;
+    
+    // If custom amount is provided (with coupon), use it
+    let finalAmount = amount;
+    
+    if (!finalAmount) {
+      // Define plan amounts (in cents)
+      const planAmounts = {
+        starter: 1900, // $19.00
+        professional: 4900, // $49.00
+        enterprise: 19900 // $199.00
+      };
+      finalAmount = planAmounts[planType];
+      if (!finalAmount) {
+        return res.status(400).json({ error: 'Invalid plan type' });
+      }
+    }
+    // Create payment intent with the adjusted amount
+    const paymentIntentData = {
+      amount: finalAmount,
+      currency: 'usd',
+      customer: customerId,
+      metadata: {
+        userId: req.user.id,
+        planType: planType,
+        couponCode: couponCode || '',
+        couponId: couponId || ''
+      }
+    };
+    // If there's a coupon, we'll apply it during subscription creation
+    // For now, the payment intent uses the discounted amount
+    const paymentIntent = await stripe.paymentIntents.create(paymentIntentData);
+    res.json({ client_secret: paymentIntent.client_secret });
+  } catch (error) {
+    console.error('Create payment intent error:', error);
+    res.status(500).json({ error: 'Failed to create payment intent' });
+  }
+});
+
+app.post('/api/stripe/billing-portal', authenticateUser, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  try {
+    const customers = await stripe.customers.list({
+      email: req.user.email,
+      limit: 1,
+    });
+    if (customers.data.length === 0) {
+      return res.status(404).json({ error: 'No Stripe customer found' });
+    }
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: customers.data[0].id,
+      return_url: `${process.env.CLIENT_URL || 'http://localhost:3000'}/billing`,
+    });
+    res.json({ url: portalSession.url });
+  } catch (error) {
+    console.error('Billing portal error:', error);
+    res.status(500).json({ error: 'Failed to create billing portal session' });
+  }
+});
+
 async function handlePaymentFailure(invoice) {
   try {
     const subscriptionId = invoice.subscription;
