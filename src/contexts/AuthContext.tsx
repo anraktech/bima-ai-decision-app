@@ -74,43 +74,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, password: string) => {
-    const response = await fetch(`${API_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email, password })
-    });
+    try {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Login failed');
+      if (!response.ok) {
+        let errorMessage = 'Login failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          // If JSON parsing fails, use status text or generic message
+          errorMessage = response.statusText || `Login failed (${response.status})`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      localStorage.setItem('token', data.token);
+      setToken(data.token);
+      setUser(data.user);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Network error - please check your connection');
     }
-
-    const data = await response.json();
-    localStorage.setItem('token', data.token);
-    setToken(data.token);
-    setUser(data.user);
   };
 
   const signup = async (email: string, password: string, name: string) => {
-    const response = await fetch(`${API_URL}/api/auth/signup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email, password, name })
-    });
+    try {
+      const response = await fetch(`${API_URL}/api/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password, name })
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Signup failed');
+      if (!response.ok) {
+        let errorMessage = 'Signup failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          // If JSON parsing fails, use status text or generic message
+          errorMessage = response.statusText || `Signup failed (${response.status})`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      localStorage.setItem('token', data.token);
+      setToken(data.token);
+      setUser(data.user);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Network error - please check your connection');
     }
-
-    const data = await response.json();
-    localStorage.setItem('token', data.token);
-    setToken(data.token);
-    setUser(data.user);
   };
 
   const logout = () => {
