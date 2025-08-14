@@ -10,6 +10,7 @@ import fs from 'fs';
 import dotenv from 'dotenv';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import Stripe from 'stripe';
 // We'll import pdf-parse dynamically when needed
 import mammoth from 'mammoth';
 import rtfParser from 'rtf-parser';
@@ -23,6 +24,9 @@ dotenv.config({ path: join(__dirname, '../.env') });
 const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
+
+// Initialize Stripe
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = join(__dirname, 'uploads');
@@ -259,6 +263,168 @@ if (fs.existsSync(distPath)) {
 
 // Billing routes
 app.use('/api/billing', billingRouter);
+
+// Stripe endpoints
+app.post('/api/stripe/create-customer', authenticateUser, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  try {
+    const { email, name } = req.body;
+    
+    // Check if customer already exists
+    const existingCustomers = await stripe.customers.list({
+      email: email,
+      limit: 1,
+    });
+
+    if (existingCustomers.data.length > 0) {
+      return res.json({ customer_id: existingCustomers.data[0].id });
+    }
+
+    // Create new customer
+    const customer = await stripe.customers.create({
+      email: email,
+      name: name,
+      metadata: {
+        userId: req.user.id,
+      },
+    });
+
+    res.json({ customer_id: customer.id });
+  } catch (error) {
+    console.error('Create customer error:', error);
+    res.status(500).json({ error: 'Failed to create customer' });
+  }
+});
+
+app.post('/api/stripe/create-payment-intent', authenticateUser, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  try {
+    const { planType, customerId } = req.body;
+    
+    // Define plan amounts (in cents)
+    const planAmounts = {
+      starter: 1900, // $19.00
+      professional: 4900, // $49.00
+      enterprise: 19900 // $199.00
+    };
+
+    const amount = planAmounts[planType];
+    if (!amount) {
+      return res.status(400).json({ error: 'Invalid plan type' });
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount,
+      currency: 'usd',
+      customer: customerId,
+      metadata: {
+        userId: req.user.id,
+        planType: planType,
+      },
+    });
+
+    res.json({ client_secret: paymentIntent.client_secret });
+  } catch (error) {
+    console.error('Create payment intent error:', error);
+    res.status(500).json({ error: 'Failed to create payment intent' });
+  }
+});
+
+app.post('/api/stripe/billing-portal', authenticateUser, async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  try {
+    const customers = await stripe.customers.list({
+      email: req.user.email,
+      limit: 1,
+    });
+
+    if (customers.data.length === 0) {
+      return res.status(404).json({ error: 'No Stripe customer found' });
+    }
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: customers.data[0].id,
+      return_url: `${process.env.CLIENT_URL || 'http://localhost:3000'}/billing`,
+    });
+
+    res.json({ url: portalSession.url });
+  } catch (error) {
+    console.error('Billing portal error:', error);
+    res.status(500).json({ error: 'Failed to create billing portal session' });
+  }
+});
+
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ error: 'Stripe not configured' });
+  }
+  const sig = req.headers['stripe-signature'];
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  switch (event.type) {
+    case 'customer.subscription.created':
+      console.log('Subscription created:', event.data.object);
+      break;
+    case 'customer.subscription.updated':
+      console.log('Subscription updated:', event.data.object);
+      break;
+    case 'customer.subscription.deleted':
+      console.log('Subscription cancelled:', event.data.object);
+      break;
+    case 'invoice.payment_succeeded':
+      console.log('Payment succeeded:', event.data.object);
+      break;
+    case 'invoice.payment_failed':
+      console.log('Payment failed:', event.data.object);
+      break;
+    default:
+      console.log(`Unhandled event type ${event.type}`);
+  }
+
+  res.json({ received: true });
+});
+
+// Subscription upgrade endpoint
+app.post('/api/subscription/upgrade', authenticateUser, async (req, res) => {
+  try {
+    const { planType } = req.body;
+    const userId = req.user.id;
+
+    // Update user's subscription tier in database
+    const updateUserSubscription = db.prepare(`
+      UPDATE users 
+      SET subscription_tier = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `);
+    
+    updateUserSubscription.run(planType, userId);
+
+    res.json({ 
+      success: true, 
+      message: 'Subscription upgraded successfully',
+      newTier: planType
+    });
+  } catch (error) {
+    console.error('Subscription upgrade error:', error);
+    res.status(500).json({ error: 'Failed to upgrade subscription' });
+  }
+});
 
 // Multer configuration for file uploads
 const storage = multer.diskStorage({
