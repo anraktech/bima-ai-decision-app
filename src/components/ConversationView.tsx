@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Pause, RotateCcw, Send, User, Bot, ChevronDown } from 'lucide-react';
 import type { ConversationState, ConversationPanel, Message } from '../types';
 import { formatTimestamp } from '../utils';
+import { useUsageMonitor } from '../hooks/useUsageMonitor';
+import { UsageLimitModal } from './UsageLimitModal';
 
 interface ConversationViewProps {
   conversation: ConversationState;
@@ -25,6 +27,9 @@ export const ConversationView = ({
   const [selectedTarget, setSelectedTarget] = useState<'model-a' | 'model-b'>('model-b');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Usage monitoring
+  const { showLimitModal, closeModal, getUsageStatus, recheckUsage } = useUsageMonitor();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -42,6 +47,12 @@ export const ConversationView = ({
 
   const handleIntervention = () => {
     if (interventionText.trim()) {
+      // Block over-limit users from adding interventions
+      const usageStatus = getUsageStatus();
+      if (usageStatus?.isOverLimit) {
+        return; // Don't allow intervention if over limit
+      }
+      
       onAddIntervention(interventionText, selectedTarget);
       setInterventionText('');
       setShowIntervention(false);
@@ -259,6 +270,12 @@ export const ConversationView = ({
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => {
+                  // Block over-limit users from continuing conversations
+                  const usageStatus = getUsageStatus();
+                  if (usageStatus?.isOverLimit) {
+                    return; // Don't allow continuing if over limit
+                  }
+                  
                   setShowIntervention(false);
                   onContinueConversation();
                 }}
@@ -277,6 +294,18 @@ export const ConversationView = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Usage Limit Modal */}
+      {showLimitModal && getUsageStatus() && (
+        <UsageLimitModal
+          isOpen={showLimitModal}
+          onClose={closeModal}
+          currentUsage={getUsageStatus()!.currentUsage}
+          usageLimit={getUsageStatus()!.usageLimit}
+          currentPlan={getUsageStatus()!.currentPlan}
+          overageAmount={getUsageStatus()!.overageAmount}
+        />
       )}
     </div>
   );

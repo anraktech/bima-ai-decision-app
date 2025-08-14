@@ -13,6 +13,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import Groq from 'groq-sdk';
 import multer from 'multer';
 import mammoth from 'mammoth';
+import Stripe from 'stripe';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -40,6 +41,17 @@ const openrouter = process.env.OPENROUTER_API_KEY ? new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
   baseURL: 'https://openrouter.ai/api/v1'
 }) : null;
+
+// Initialize Stripe
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2023-10-16',
+}) : null;
+
+if (!stripe) {
+  console.warn('⚠️  Stripe not configured - payment features will be disabled');
+} else {
+  console.log('✅ Stripe configured successfully');
+}
 
 // Database setup - use persistent volume in production
 // On Railway, use /data mount path, otherwise use current directory
@@ -213,13 +225,134 @@ db.exec(`
   )
 `);
 
+// Subscription management tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    plan_type TEXT NOT NULL DEFAULT 'explore',
+    status TEXT NOT NULL DEFAULT 'active',
+    current_period_start DATETIME,
+    current_period_end DATETIME,
+    cancel_at_period_end INTEGER DEFAULT 0,
+    stripe_subscription_id TEXT,
+    stripe_customer_id TEXT,
+    stripe_price_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    UNIQUE(user_id)
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS subscription_usage_periods (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    subscription_id INTEGER NOT NULL,
+    period_start DATETIME NOT NULL,
+    period_end DATETIME NOT NULL,
+    tokens_used INTEGER DEFAULT 0,
+    tokens_limit INTEGER NOT NULL,
+    cost_incurred REAL DEFAULT 0.0,
+    plan_type TEXT NOT NULL,
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS subscription_renewals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    subscription_id INTEGER NOT NULL,
+    old_period_end DATETIME NOT NULL,
+    new_period_start DATETIME NOT NULL,
+    new_period_end DATETIME NOT NULL,
+    plan_type TEXT NOT NULL,
+    renewal_type TEXT DEFAULT 'automatic',
+    stripe_invoice_id TEXT,
+    amount_paid REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE CASCADE
+  )
+`);
+
 // Create indexes for better performance
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_community_posts_user_id ON community_posts(user_id);
   CREATE INDEX IF NOT EXISTS idx_community_posts_created_at ON community_posts(created_at);
   CREATE INDEX IF NOT EXISTS idx_community_post_likes_user_id ON community_post_likes(user_id);
   CREATE INDEX IF NOT EXISTS idx_community_post_likes_post_id ON community_post_likes(post_id);
+  CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+  CREATE INDEX IF NOT EXISTS idx_usage_periods_user_id ON subscription_usage_periods(user_id);
+  CREATE INDEX IF NOT EXISTS idx_usage_periods_dates ON subscription_usage_periods(period_start, period_end);
+  CREATE INDEX IF NOT EXISTS idx_renewals_user_id ON subscription_renewals(user_id);
 `);
+
+// Migration: Create default subscriptions for existing users who don't have them
+try {
+  console.log('🔄 Checking for users without subscriptions...');
+  
+  const usersWithoutSubs = db.prepare(`
+    SELECT u.id, u.email, u.name, u.subscription_tier 
+    FROM users u 
+    LEFT JOIN subscriptions s ON u.id = s.user_id AND s.status = 'active'
+    WHERE s.id IS NULL
+  `).all();
+  
+  if (usersWithoutSubs.length > 0) {
+    console.log(`📝 Creating default subscriptions for ${usersWithoutSubs.length} existing users...`);
+    
+    const createDefaultSub = db.transaction((user) => {
+      const now = new Date();
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+      const planType = user.subscription_tier || 'explore';
+      
+      const planLimits = {
+        explore: { tokens: 50000, price: 0 },
+        starter: { tokens: 250000, price: 19 },
+        professional: { tokens: 750000, price: 49 },
+        enterprise: { tokens: 3000000, price: 199 }
+      };
+      
+      // Create subscription
+      const subResult = db.prepare(`
+        INSERT INTO subscriptions (
+          user_id, plan_type, status, current_period_start, current_period_end
+        ) VALUES (?, ?, ?, ?, ?)
+      `).run(user.id, planType, 'active', now.toISOString(), monthEnd.toISOString());
+      
+      // Create usage period
+      db.prepare(`
+        INSERT INTO subscription_usage_periods (
+          user_id, subscription_id, period_start, period_end, tokens_used, tokens_limit, plan_type
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(user.id, subResult.lastInsertRowid, now.toISOString(), monthEnd.toISOString(), 0, planLimits[planType].tokens, planType);
+      
+      return subResult.lastInsertRowid;
+    });
+    
+    for (const user of usersWithoutSubs) {
+      try {
+        const subId = createDefaultSub(user);
+        console.log(`✅ Created subscription ${subId} for user ${user.email} (${user.subscription_tier || 'explore'} plan)`);
+      } catch (error) {
+        console.error(`❌ Failed to create subscription for user ${user.email}:`, error.message);
+      }
+    }
+    
+    console.log('✅ Default subscription migration completed');
+  } else {
+    console.log('ℹ️  All users already have subscriptions');
+  }
+} catch (error) {
+  console.error('❌ Subscription migration error:', error.message);
+}
 
 // CORS configuration for production
 app.use(cors({
@@ -457,7 +590,25 @@ app.post('/api/auth/signup', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 12);
     const result = db.prepare('INSERT INTO users (email, password, name) VALUES (?, ?, ?)').run(email, hashedPassword, name);
     
-    const token = jwt.sign({ userId: result.lastInsertRowid, email }, JWT_SECRET, { expiresIn: '24h' });
+    // Create default subscription for new user (Explore plan)
+    const userId = result.lastInsertRowid;
+    const now = new Date();
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    
+    const subscriptionResult = db.prepare(`
+      INSERT INTO subscriptions (
+        user_id, plan_type, status, current_period_start, current_period_end
+      ) VALUES (?, ?, ?, ?, ?)
+    `).run(userId, 'explore', 'active', now.toISOString(), monthEnd.toISOString());
+    
+    // Create initial usage period
+    db.prepare(`
+      INSERT INTO subscription_usage_periods (
+        user_id, subscription_id, period_start, period_end, tokens_used, tokens_limit, plan_type
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, subscriptionResult.lastInsertRowid, now.toISOString(), monthEnd.toISOString(), 0, 50000, 'explore');
+    
+    const token = jwt.sign({ userId: userId, email }, JWT_SECRET, { expiresIn: '24h' });
     
     res.status(201).json({ 
       token, 
@@ -1756,11 +1907,23 @@ app.get('/api/usage/stats', authenticateToken, (req, res) => {
       WHERE user_id = ?
     `).get(req.user.userId);
     
+    // Get subscription information
+    const subscriptionInfo = db.prepare(`
+      SELECT s.plan_type, s.current_period_start, s.current_period_end,
+             up.tokens_used, up.tokens_limit, up.period_start, up.period_end
+      FROM subscriptions s
+      LEFT JOIN subscription_usage_periods up ON s.id = up.subscription_id AND up.status = 'active'
+      WHERE s.user_id = ? AND s.status = 'active'
+      ORDER BY s.created_at DESC
+      LIMIT 1
+    `).get(req.user.userId);
+    
     console.log('📈 Usage stats computed:', {
       totalTokens: overallStats.totalTokens,
       totalConversations: conversationStats.totalConversations,
       modelCount: modelUsage.length,
-      dailyRecords: dailyUsage.length
+      dailyRecords: dailyUsage.length,
+      subscription: subscriptionInfo ? subscriptionInfo.plan_type : 'none'
     });
     
     res.json({
@@ -1779,7 +1942,16 @@ app.get('/api/usage/stats', authenticateToken, (req, res) => {
         date: day.date,
         tokens: day.tokens || 0,
         cost: day.cost || 0
-      }))
+      })),
+      subscription: subscriptionInfo ? {
+        plan_type: subscriptionInfo.plan_type,
+        current_period_start: subscriptionInfo.current_period_start,
+        current_period_end: subscriptionInfo.current_period_end,
+        period_tokens_used: subscriptionInfo.tokens_used || 0,
+        period_tokens_limit: subscriptionInfo.tokens_limit || 50000,
+        period_start: subscriptionInfo.period_start,
+        period_end: subscriptionInfo.period_end
+      } : null
     });
   } catch (error) {
     console.error('Error fetching usage stats:', error);
@@ -1831,6 +2003,19 @@ app.post('/api/usage/track', authenticateToken, (req, res) => {
     } else {
       console.error('❌ Unknown database schema in track endpoint. Available columns:', columnNames);
       return res.status(500).json({ error: 'Database schema not recognized' });
+    }
+    
+    // Update subscription usage period
+    try {
+      db.prepare(`
+        UPDATE subscription_usage_periods 
+        SET tokens_used = tokens_used + ?
+        WHERE user_id = ? AND status = 'active'
+      `).run(finalTokens, req.user.userId);
+      
+      console.log(`🔄 Updated subscription usage: +${finalTokens} tokens for user ${req.user.userId}`);
+    } catch (subError) {
+      console.warn('⚠️ Failed to update subscription usage (continuing):', subError.message);
     }
     
     console.log(`✅ Frontend tracking successful: ${finalTokens} tokens for ${finalModel} (user ${req.user.userId})`);
@@ -1980,6 +2165,662 @@ app.get('/api/models/providers', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch providers' });
   }
 });
+
+// ========== SUBSCRIPTION MANAGEMENT ENDPOINTS ==========
+
+// Get user's current subscription
+app.get('/api/subscription', authenticateToken, (req, res) => {
+  try {
+    const subscription = db.prepare(`
+      SELECT s.*, up.tokens_used, up.tokens_limit, up.period_start, up.period_end
+      FROM subscriptions s
+      LEFT JOIN subscription_usage_periods up ON s.id = up.subscription_id AND up.status = 'active'
+      WHERE s.user_id = ? AND s.status = 'active'
+      ORDER BY s.created_at DESC
+      LIMIT 1
+    `).get(req.user.userId);
+
+    if (!subscription) {
+      // Create default subscription if none exists
+      const now = new Date();
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+      
+      const newSub = db.prepare(`
+        INSERT INTO subscriptions (user_id, plan_type, status, current_period_start, current_period_end)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(req.user.userId, 'explore', 'active', now.toISOString(), monthEnd.toISOString());
+      
+      db.prepare(`
+        INSERT INTO subscription_usage_periods (
+          user_id, subscription_id, period_start, period_end, tokens_used, tokens_limit, plan_type
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(req.user.userId, newSub.lastInsertRowid, now.toISOString(), monthEnd.toISOString(), 0, 50000, 'explore');
+      
+      return res.json({
+        id: newSub.lastInsertRowid,
+        plan_type: 'explore',
+        status: 'active',
+        current_period_start: now.toISOString(),
+        current_period_end: monthEnd.toISOString(),
+        tokens_used: 0,
+        tokens_limit: 50000,
+        period_start: now.toISOString(),
+        period_end: monthEnd.toISOString()
+      });
+    }
+
+    res.json(subscription);
+  } catch (error) {
+    console.error('Error fetching subscription:', error);
+    res.status(500).json({ error: 'Failed to fetch subscription' });
+  }
+});
+
+// Upgrade subscription
+app.post('/api/subscription/upgrade', authenticateToken, async (req, res) => {
+  try {
+    const { planType } = req.body;
+    
+    const planLimits = {
+      explore: { tokens: 50000, price: 0 },
+      starter: { tokens: 250000, price: 19 },
+      professional: { tokens: 750000, price: 49 },
+      enterprise: { tokens: 3000000, price: 199 }
+    };
+
+    if (!planLimits[planType]) {
+      return res.status(400).json({ error: 'Invalid plan type' });
+    }
+
+    const now = new Date();
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+
+    // Start transaction
+    const updateSub = db.transaction(() => {
+      // End current subscription
+      db.prepare(`
+        UPDATE subscriptions 
+        SET status = 'cancelled', updated_at = ?
+        WHERE user_id = ? AND status = 'active'
+      `).run(now.toISOString(), req.user.userId);
+
+      // End current usage period
+      db.prepare(`
+        UPDATE subscription_usage_periods 
+        SET status = 'ended'
+        WHERE user_id = ? AND status = 'active'
+      `).run(req.user.userId);
+
+      // Create new subscription
+      const newSub = db.prepare(`
+        INSERT INTO subscriptions (
+          user_id, plan_type, status, current_period_start, current_period_end
+        ) VALUES (?, ?, ?, ?, ?)
+      `).run(req.user.userId, planType, 'active', now.toISOString(), monthEnd.toISOString());
+
+      // Create new usage period
+      db.prepare(`
+        INSERT INTO subscription_usage_periods (
+          user_id, subscription_id, period_start, period_end, tokens_used, tokens_limit, plan_type
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(req.user.userId, newSub.lastInsertRowid, now.toISOString(), monthEnd.toISOString(), 0, planLimits[planType].tokens, planType);
+
+      // Update user's subscription tier
+      db.prepare('UPDATE users SET subscription_tier = ? WHERE id = ?').run(planType, req.user.userId);
+
+      return newSub.lastInsertRowid;
+    });
+
+    const subscriptionId = updateSub();
+
+    res.json({
+      success: true,
+      subscription: {
+        id: subscriptionId,
+        plan_type: planType,
+        status: 'active',
+        current_period_start: now.toISOString(),
+        current_period_end: monthEnd.toISOString(),
+        tokens_used: 0,
+        tokens_limit: planLimits[planType].tokens
+      }
+    });
+  } catch (error) {
+    console.error('Error upgrading subscription:', error);
+    res.status(500).json({ error: 'Failed to upgrade subscription' });
+  }
+});
+
+// Renew subscription (for monthly renewals)
+app.post('/api/subscription/renew', authenticateToken, async (req, res) => {
+  try {
+    const subscription = db.prepare(`
+      SELECT * FROM subscriptions 
+      WHERE user_id = ? AND status = 'active'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(req.user.userId);
+
+    if (!subscription) {
+      return res.status(404).json({ error: 'No active subscription found' });
+    }
+
+    const planLimits = {
+      explore: { tokens: 50000, price: 0 },
+      starter: { tokens: 250000, price: 19 },
+      professional: { tokens: 750000, price: 49 },
+      enterprise: { tokens: 3000000, price: 199 }
+    };
+
+    const now = new Date();
+    const newPeriodEnd = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    
+    const renewTxn = db.transaction(() => {
+      // Update subscription period
+      db.prepare(`
+        UPDATE subscriptions 
+        SET current_period_start = ?, current_period_end = ?, updated_at = ?
+        WHERE id = ?
+      `).run(now.toISOString(), newPeriodEnd.toISOString(), now.toISOString(), subscription.id);
+
+      // End current usage period
+      db.prepare(`
+        UPDATE subscription_usage_periods 
+        SET status = 'ended'
+        WHERE subscription_id = ? AND status = 'active'
+      `).run(subscription.id);
+
+      // Create new usage period
+      db.prepare(`
+        INSERT INTO subscription_usage_periods (
+          user_id, subscription_id, period_start, period_end, tokens_used, tokens_limit, plan_type
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(req.user.userId, subscription.id, now.toISOString(), newPeriodEnd.toISOString(), 0, planLimits[subscription.plan_type].tokens, subscription.plan_type);
+
+      // Record renewal
+      db.prepare(`
+        INSERT INTO subscription_renewals (
+          user_id, subscription_id, old_period_end, new_period_start, new_period_end, 
+          plan_type, renewal_type, amount_paid
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(req.user.userId, subscription.id, subscription.current_period_end, now.toISOString(), newPeriodEnd.toISOString(), subscription.plan_type, 'automatic', planLimits[subscription.plan_type].price);
+    });
+
+    renewTxn();
+
+    res.json({
+      success: true,
+      message: 'Subscription renewed successfully',
+      new_period_end: newPeriodEnd.toISOString()
+    });
+  } catch (error) {
+    console.error('Error renewing subscription:', error);
+    res.status(500).json({ error: 'Failed to renew subscription' });
+  }
+});
+
+// Get subscription history
+app.get('/api/subscription/history', authenticateToken, (req, res) => {
+  try {
+    const history = db.prepare(`
+      SELECT 
+        s.plan_type,
+        s.status,
+        s.current_period_start,
+        s.current_period_end,
+        s.created_at,
+        r.renewal_type,
+        r.amount_paid,
+        r.created_at as renewal_date
+      FROM subscriptions s
+      LEFT JOIN subscription_renewals r ON s.id = r.subscription_id
+      WHERE s.user_id = ?
+      ORDER BY s.created_at DESC
+    `).all(req.user.userId);
+
+    res.json({ history });
+  } catch (error) {
+    console.error('Error fetching subscription history:', error);
+    res.status(500).json({ error: 'Failed to fetch subscription history' });
+  }
+});
+
+// Check if subscription needs renewal (for automated checks)
+app.get('/api/subscription/check-renewal', authenticateToken, (req, res) => {
+  try {
+    const subscription = db.prepare(`
+      SELECT * FROM subscriptions 
+      WHERE user_id = ? AND status = 'active'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(req.user.userId);
+
+    if (!subscription) {
+      return res.json({ needsRenewal: false });
+    }
+
+    const periodEnd = new Date(subscription.current_period_end);
+    const now = new Date();
+    const daysLeft = Math.ceil((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    res.json({
+      needsRenewal: daysLeft <= 3,
+      daysLeft,
+      subscription: {
+        plan_type: subscription.plan_type,
+        current_period_end: subscription.current_period_end
+      }
+    });
+  } catch (error) {
+    console.error('Error checking renewal:', error);
+    res.status(500).json({ error: 'Failed to check renewal status' });
+  }
+});
+
+// ========== STRIPE PAYMENT ENDPOINTS ==========
+
+// Create Stripe customer for user
+app.post('/api/stripe/create-customer', authenticateToken, async (req, res) => {
+  try {
+    if (!stripe) {
+      return res.status(400).json({ error: 'Stripe not configured' });
+    }
+
+    const { email, name } = req.body;
+    
+    // Check if user already has a Stripe customer
+    const existingSubscription = db.prepare('SELECT stripe_customer_id FROM subscriptions WHERE user_id = ? AND stripe_customer_id IS NOT NULL LIMIT 1').get(req.user.userId);
+    
+    if (existingSubscription?.stripe_customer_id) {
+      return res.json({ customer_id: existingSubscription.stripe_customer_id });
+    }
+
+    // Create new Stripe customer
+    const customer = await stripe.customers.create({
+      email: email,
+      name: name,
+      metadata: {
+        user_id: req.user.userId.toString()
+      }
+    });
+
+    res.json({ customer_id: customer.id });
+  } catch (error) {
+    console.error('Error creating Stripe customer:', error);
+    res.status(500).json({ error: 'Failed to create customer' });
+  }
+});
+
+// Create payment intent for plan upgrade
+app.post('/api/stripe/create-payment-intent', authenticateToken, async (req, res) => {
+  try {
+    if (!stripe) {
+      return res.status(400).json({ error: 'Stripe not configured' });
+    }
+
+    const { planType, customerId } = req.body;
+    
+    const planPrices = {
+      starter: 1900,    // $19.00 in cents
+      professional: 4900, // $49.00 in cents
+      enterprise: 19900   // $199.00 in cents
+    };
+
+    if (!planPrices[planType]) {
+      return res.status(400).json({ error: 'Invalid plan type' });
+    }
+
+    // Create payment intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: planPrices[planType],
+      currency: 'usd',
+      customer: customerId,
+      metadata: {
+        user_id: req.user.userId.toString(),
+        plan_type: planType,
+        subscription_type: 'upgrade'
+      },
+      automatic_payment_methods: {
+        enabled: true,
+      },
+    });
+
+    res.json({
+      client_secret: paymentIntent.client_secret,
+      amount: planPrices[planType]
+    });
+  } catch (error) {
+    console.error('Error creating payment intent:', error);
+    res.status(500).json({ error: 'Failed to create payment intent' });
+  }
+});
+
+// Create Stripe subscription
+app.post('/api/stripe/create-subscription', authenticateToken, async (req, res) => {
+  try {
+    if (!stripe) {
+      return res.status(400).json({ error: 'Stripe not configured' });
+    }
+
+    const { planType, customerId, paymentMethodId } = req.body;
+    
+    const planPriceIds = {
+      starter: process.env.STRIPE_STARTER_PRICE_ID,
+      professional: process.env.STRIPE_PROFESSIONAL_PRICE_ID,
+      enterprise: process.env.STRIPE_ENTERPRISE_PRICE_ID
+    };
+
+    if (!planPriceIds[planType]) {
+      return res.status(400).json({ error: 'Invalid plan type or price ID not configured' });
+    }
+
+    // Attach payment method to customer
+    await stripe.paymentMethods.attach(paymentMethodId, {
+      customer: customerId,
+    });
+
+    // Set as default payment method
+    await stripe.customers.update(customerId, {
+      default_source: paymentMethodId,
+    });
+
+    // Create subscription
+    const subscription = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: planPriceIds[planType] }],
+      default_payment_method: paymentMethodId,
+      metadata: {
+        user_id: req.user.userId.toString(),
+        plan_type: planType
+      }
+    });
+
+    // Update local subscription record
+    const now = new Date();
+    const periodEnd = new Date(subscription.current_period_end * 1000);
+
+    const updateTxn = db.transaction(() => {
+      // End current subscription
+      db.prepare(`
+        UPDATE subscriptions 
+        SET status = 'cancelled', updated_at = ?
+        WHERE user_id = ? AND status = 'active'
+      `).run(now.toISOString(), req.user.userId);
+
+      // Create new subscription with Stripe data
+      const newSub = db.prepare(`
+        INSERT INTO subscriptions (
+          user_id, plan_type, status, current_period_start, current_period_end,
+          stripe_subscription_id, stripe_customer_id, stripe_price_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        req.user.userId,
+        planType,
+        'active',
+        new Date(subscription.current_period_start * 1000).toISOString(),
+        periodEnd.toISOString(),
+        subscription.id,
+        customerId,
+        planPriceIds[planType]
+      );
+
+      // Update user plan
+      db.prepare('UPDATE users SET subscription_tier = ? WHERE id = ?').run(planType, req.user.userId);
+
+      return newSub.lastInsertRowid;
+    });
+
+    const subscriptionId = updateTxn();
+
+    res.json({
+      subscription_id: subscription.id,
+      status: subscription.status,
+      current_period_end: subscription.current_period_end,
+      local_subscription_id: subscriptionId
+    });
+  } catch (error) {
+    console.error('Error creating Stripe subscription:', error);
+    res.status(500).json({ error: 'Failed to create subscription' });
+  }
+});
+
+// Cancel Stripe subscription
+app.post('/api/stripe/cancel-subscription', authenticateToken, async (req, res) => {
+  try {
+    if (!stripe) {
+      return res.status(400).json({ error: 'Stripe not configured' });
+    }
+
+    const subscription = db.prepare(`
+      SELECT stripe_subscription_id FROM subscriptions 
+      WHERE user_id = ? AND status = 'active' AND stripe_subscription_id IS NOT NULL
+      LIMIT 1
+    `).get(req.user.userId);
+
+    if (!subscription?.stripe_subscription_id) {
+      return res.status(404).json({ error: 'No active Stripe subscription found' });
+    }
+
+    // Cancel at period end
+    const cancelledSubscription = await stripe.subscriptions.update(subscription.stripe_subscription_id, {
+      cancel_at_period_end: true
+    });
+
+    // Update local record
+    db.prepare(`
+      UPDATE subscriptions 
+      SET cancel_at_period_end = 1, updated_at = ?
+      WHERE stripe_subscription_id = ?
+    `).run(new Date().toISOString(), subscription.stripe_subscription_id);
+
+    res.json({
+      success: true,
+      cancel_at_period_end: true,
+      current_period_end: cancelledSubscription.current_period_end
+    });
+  } catch (error) {
+    console.error('Error cancelling subscription:', error);
+    res.status(500).json({ error: 'Failed to cancel subscription' });
+  }
+});
+
+// Get Stripe billing portal session
+app.post('/api/stripe/billing-portal', authenticateToken, async (req, res) => {
+  try {
+    if (!stripe) {
+      return res.status(400).json({ error: 'Stripe not configured' });
+    }
+
+    const subscription = db.prepare(`
+      SELECT stripe_customer_id FROM subscriptions 
+      WHERE user_id = ? AND stripe_customer_id IS NOT NULL
+      LIMIT 1
+    `).get(req.user.userId);
+
+    if (!subscription?.stripe_customer_id) {
+      return res.status(404).json({ error: 'No Stripe customer found' });
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: subscription.stripe_customer_id,
+      return_url: process.env.CLIENT_URL || 'http://localhost:5173/billing',
+    });
+
+    res.json({ url: session.url });
+  } catch (error) {
+    console.error('Error creating billing portal session:', error);
+    res.status(500).json({ error: 'Failed to create billing portal session' });
+  }
+});
+
+// ========== STRIPE WEBHOOKS ==========
+
+// Stripe webhook endpoint (before body parsing middleware)
+app.post('/api/stripe/webhook', express.raw({type: 'application/json'}), async (req, res) => {
+  try {
+    if (!stripe) {
+      return res.status(400).json({ error: 'Stripe not configured' });
+    }
+
+    const sig = req.headers['stripe-signature'];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!endpointSecret) {
+      console.error('Stripe webhook secret not configured');
+      return res.status(400).json({ error: 'Webhook secret not configured' });
+    }
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    } catch (err) {
+      console.error('Webhook signature verification failed:', err.message);
+      return res.status(400).json({ error: 'Webhook signature verification failed' });
+    }
+
+    console.log('📧 Stripe webhook received:', event.type);
+
+    // Handle the event
+    switch (event.type) {
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+        await handleSubscriptionUpdate(event.data.object);
+        break;
+        
+      case 'customer.subscription.deleted':
+        await handleSubscriptionCancellation(event.data.object);
+        break;
+        
+      case 'invoice.payment_succeeded':
+        await handlePaymentSuccess(event.data.object);
+        break;
+        
+      case 'invoice.payment_failed':
+        await handlePaymentFailure(event.data.object);
+        break;
+        
+      default:
+        console.log(`Unhandled Stripe event type: ${event.type}`);
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('Webhook processing error:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
+// Helper functions for webhook handling
+async function handleSubscriptionUpdate(subscription) {
+  try {
+    const userId = subscription.metadata.user_id;
+    if (!userId) {
+      console.error('No user_id in subscription metadata');
+      return;
+    }
+
+    const now = new Date();
+    const periodStart = new Date(subscription.current_period_start * 1000);
+    const periodEnd = new Date(subscription.current_period_end * 1000);
+
+    // Determine plan type from price ID
+    const priceId = subscription.items.data[0]?.price?.id;
+    let planType = 'explore';
+    
+    if (priceId === process.env.STRIPE_STARTER_PRICE_ID) planType = 'starter';
+    else if (priceId === process.env.STRIPE_PROFESSIONAL_PRICE_ID) planType = 'professional';
+    else if (priceId === process.env.STRIPE_ENTERPRISE_PRICE_ID) planType = 'enterprise';
+
+    const planLimits = {
+      explore: { tokens: 50000, price: 0 },
+      starter: { tokens: 250000, price: 19 },
+      professional: { tokens: 750000, price: 49 },
+      enterprise: { tokens: 3000000, price: 199 }
+    };
+
+    // Update subscription in database
+    const updateTxn = db.transaction(() => {
+      // Update or create subscription
+      const existingSub = db.prepare('SELECT id FROM subscriptions WHERE stripe_subscription_id = ?').get(subscription.id);
+      
+      if (existingSub) {
+        // Update existing
+        db.prepare(`
+          UPDATE subscriptions 
+          SET plan_type = ?, status = ?, current_period_start = ?, current_period_end = ?, 
+              cancel_at_period_end = ?, updated_at = ?
+          WHERE stripe_subscription_id = ?
+        `).run(
+          planType,
+          subscription.status === 'active' ? 'active' : 'cancelled',
+          periodStart.toISOString(),
+          periodEnd.toISOString(),
+          subscription.cancel_at_period_end ? 1 : 0,
+          now.toISOString(),
+          subscription.id
+        );
+
+        // End old usage periods
+        db.prepare('UPDATE subscription_usage_periods SET status = "ended" WHERE subscription_id = ? AND status = "active"').run(existingSub.id);
+
+        // Create new usage period
+        db.prepare(`
+          INSERT INTO subscription_usage_periods (
+            user_id, subscription_id, period_start, period_end, tokens_used, tokens_limit, plan_type
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(userId, existingSub.id, periodStart.toISOString(), periodEnd.toISOString(), 0, planLimits[planType].tokens, planType);
+      }
+
+      // Update user plan
+      db.prepare('UPDATE users SET subscription_tier = ? WHERE id = ?').run(planType, userId);
+    });
+
+    updateTxn();
+    console.log(`✅ Updated subscription for user ${userId} to ${planType} plan`);
+  } catch (error) {
+    console.error('Error handling subscription update:', error);
+  }
+}
+
+async function handleSubscriptionCancellation(subscription) {
+  try {
+    // Mark subscription as cancelled
+    db.prepare(`
+      UPDATE subscriptions 
+      SET status = 'cancelled', updated_at = ?
+      WHERE stripe_subscription_id = ?
+    `).run(new Date().toISOString(), subscription.id);
+
+    console.log(`✅ Cancelled subscription ${subscription.id}`);
+  } catch (error) {
+    console.error('Error handling subscription cancellation:', error);
+  }
+}
+
+async function handlePaymentSuccess(invoice) {
+  try {
+    const subscriptionId = invoice.subscription;
+    const customerId = invoice.customer;
+    
+    // Record successful payment
+    console.log(`✅ Payment succeeded for subscription ${subscriptionId}`);
+    
+    // Could record payment history here if needed
+  } catch (error) {
+    console.error('Error handling payment success:', error);
+  }
+}
+
+async function handlePaymentFailure(invoice) {
+  try {
+    const subscriptionId = invoice.subscription;
+    
+    // Handle failed payment - could send notifications, etc.
+    console.log(`❌ Payment failed for subscription ${subscriptionId}`);
+    
+    // Could update subscription status or send user notifications
+  } catch (error) {
+    console.error('Error handling payment failure:', error);
+  }
+}
 
 // Start server
 app.listen(PORT, () => {

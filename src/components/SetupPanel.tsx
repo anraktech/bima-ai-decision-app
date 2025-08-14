@@ -9,8 +9,10 @@ import { ImportModelModal } from './ImportModelModal';
 import { MultiplayerSetupModal, type MultiplayerConfig } from './MultiplayerSetupModal';
 import { WatchLiveModal } from './WatchLiveModal';
 import { LiveTokenModal } from './LiveTokenModal';
+import { UsageLimitModal } from './UsageLimitModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useLiveSession } from '../hooks/useLiveSession';
+import { useUsageMonitor } from '../hooks/useUsageMonitor';
 
 interface SetupPanelProps {
   panelA: ConversationPanel;
@@ -55,7 +57,11 @@ export const SetupPanel = memo(({
   const [pendingConversationStart, setPendingConversationStart] = useState<{agent: 'model-a' | 'model-b', message: string} | null>(null);
   const [liveToken, setLiveToken] = useState<string | null>(null);
   const [importedModels, setImportedModels] = useState<AIModel[]>([]);
+  const [showUsageLimitModal, setShowUsageLimitModal] = useState(false);
   const { token } = useAuth();
+
+  // Usage monitoring for blocking over-limit users
+  const { getUsageStatus } = useUsageMonitor();
 
   // No longer need to fetch imported models separately since they're now part of customModels
 
@@ -117,6 +123,9 @@ export const SetupPanel = memo(({
     }
   }, [onSystemInstructionsChange]);
 
+  const usageStatus = getUsageStatus();
+  const isOverLimit = usageStatus?.isOverLimit || false;
+  
   const isSetupValid = Boolean(
     panelA.model && 
     panelB.model && 
@@ -377,6 +386,12 @@ export const SetupPanel = memo(({
         
         <button
           onClick={() => {
+            // Block over-limit users from starting conversations
+            if (isOverLimit) {
+              setShowUsageLimitModal(true);
+              return;
+            }
+            
             if (isMultiplayerMode) {
               setShowMultiplayerSetup(true);
             } else {
@@ -384,10 +399,12 @@ export const SetupPanel = memo(({
             }
           }}
           disabled={!isSetupValid}
-          className={`inline-flex items-center justify-center px-6 py-2.5 bg-black text-white font-medium rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 disabled:hover:scale-100 space-x-2 shadow-sm`}
+          className={`inline-flex items-center justify-center px-6 py-2.5 ${
+            isOverLimit ? 'bg-red-600 hover:bg-red-700' : 'bg-black hover:bg-gray-800'
+          } text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 disabled:hover:scale-100 space-x-2 shadow-sm`}
         >
           <Play className="w-4 h-4" />
-          <span>{isMultiplayerMode ? 'Setup Multiplayer' : 'Start Conversation'}</span>
+          <span>{isOverLimit ? 'Upgrade Required' : isMultiplayerMode ? 'Setup Multiplayer' : 'Start Conversation'}</span>
         </button>
       </div>
 
@@ -624,6 +641,18 @@ export const SetupPanel = memo(({
           setShowLiveTokenModal(false);
         }}
       />
+      
+      {/* Usage Limit Modal */}
+      {showUsageLimitModal && usageStatus && (
+        <UsageLimitModal
+          isOpen={showUsageLimitModal}
+          onClose={() => setShowUsageLimitModal(false)}
+          currentUsage={usageStatus.currentUsage}
+          usageLimit={usageStatus.usageLimit}
+          currentPlan={usageStatus.currentPlan}
+          overageAmount={usageStatus.overageAmount}
+        />
+      )}
     </div>
   );
 });

@@ -30,6 +30,8 @@ import {
   MoreVertical
 } from 'lucide-react';
 import { formatTimestamp } from '../utils';
+import { useUsageMonitor } from '../hooks/useUsageMonitor';
+import { UsageLimitModal } from '../components/UsageLimitModal';
 
 interface Participant {
   id: string;
@@ -95,6 +97,9 @@ export function MultiplayerArena() {
   
   // Conversation state
   const [isConversationActive, setIsConversationActive] = useState(false);
+  
+  // Usage monitoring
+  const { showLimitModal, closeModal, getUsageStatus, recheckUsage } = useUsageMonitor();
   const [nextResponder, setNextResponder] = useState<'model-a' | 'model-b'>('model-b');
   
   // WebSocket
@@ -669,6 +674,8 @@ export function MultiplayerArena() {
           };
           
           trackUsage();
+          // Recheck usage after tracking for limit monitoring
+          setTimeout(() => recheckUsage(), 1000);
         } else {
           console.error('❌ No auth token found for Multiplayer Arena usage tracking');
         }
@@ -1104,6 +1111,18 @@ export function MultiplayerArena() {
           </div>
         )}
       </div>
+
+      {/* Usage Limit Modal */}
+      {showLimitModal && getUsageStatus() && (
+        <UsageLimitModal
+          isOpen={showLimitModal}
+          onClose={closeModal}
+          currentUsage={getUsageStatus()!.currentUsage}
+          usageLimit={getUsageStatus()!.usageLimit}
+          currentPlan={getUsageStatus()!.currentPlan}
+          overageAmount={getUsageStatus()!.overageAmount}
+        />
+      )}
     </div>
   );
 }

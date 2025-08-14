@@ -33,6 +33,8 @@ import {
 import { formatTimestamp } from '../utils';
 import { API_URL } from '../config/api';
 import type { AIModel } from '../types';
+import { useUsageMonitor } from '../hooks/useUsageMonitor';
+import { UsageLimitModal } from '../components/UsageLimitModal';
 
 interface ModelConfig {
   id: number;
@@ -72,6 +74,9 @@ export function MaxConversation() {
   const [copied, setCopied] = useState(false);
   const [startTime] = useState(new Date());
   const [elapsedTime, setElapsedTime] = useState('00:00');
+  
+  // Usage monitoring
+  const { showLimitModal, closeModal, getUsageStatus, recheckUsage } = useUsageMonitor();
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { models, startingModel, openingLine } = location.state || {};
@@ -136,10 +141,15 @@ export function MaxConversation() {
     if (messages.length > 0 && !isGenerating && !showIntervention) {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage.type === 'ai' || lastMessage.type === 'intervention') {
+        // Block over-limit users from continuing conversations
+        const usageStatus = getUsageStatus();
+        if (usageStatus?.isOverLimit) {
+          return; // Don't generate response if over limit
+        }
         generateNextResponse();
       }
     }
-  }, [messages, showIntervention]);
+  }, [messages, showIntervention, getUsageStatus]);
   
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -292,6 +302,8 @@ export function MaxConversation() {
           };
           
           trackUsage();
+          // Recheck usage after tracking for limit monitoring
+          setTimeout(() => recheckUsage(), 1000);
         } else {
           console.error('❌ No auth token found for MAX mode usage tracking');
         }
@@ -326,6 +338,12 @@ export function MaxConversation() {
   
   const sendIntervention = () => {
     if (!interventionText.trim()) return;
+    
+    // Block over-limit users from sending interventions
+    const usageStatus = getUsageStatus();
+    if (usageStatus?.isOverLimit) {
+      return; // Don't allow intervention if over limit
+    }
     
     const interventionMessage: Message = {
       id: `intervention-${Date.now()}`,
@@ -601,6 +619,18 @@ export function MaxConversation() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Usage Limit Modal */}
+      {showLimitModal && getUsageStatus() && (
+        <UsageLimitModal
+          isOpen={showLimitModal}
+          onClose={closeModal}
+          currentUsage={getUsageStatus()!.currentUsage}
+          usageLimit={getUsageStatus()!.usageLimit}
+          currentPlan={getUsageStatus()!.currentPlan}
+          overageAmount={getUsageStatus()!.overageAmount}
+        />
       )}
     </div>
   );
