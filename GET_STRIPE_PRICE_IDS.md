@@ -1,9 +1,12 @@
 # 🔑 Get Your Stripe Price IDs (CRITICAL FOR PAYMENTS TO WORK)
 
-## Why This Is Needed
-Since your Stripe payment link works, you have proper products set up in Stripe. Our code needs to use the **same Price IDs** that your working payment link uses.
+## 🚨 IMPORTANT: Price ID vs Product ID
+**You're currently using a Product ID (`prod_SrhEurGXrG6ZB1`) but we need Price IDs (`price_xxx`)**
 
-## 📋 Steps to Get Price IDs:
+- ❌ **Product ID**: `prod_SrhEurGXrG6ZB1` (This is what you have)
+- ✅ **Price ID**: `price_1ABC123def456` (This is what we need)
+
+## 📋 Steps to Get PRICE IDs (Not Product IDs):
 
 ### 1. Go to Stripe Dashboard
 - Visit: https://dashboard.stripe.com/products
@@ -15,21 +18,34 @@ You should see your products like:
 - Professional - $49  
 - Enterprise - $199
 
-### 3. Get Price IDs
+### 3. Get PRICE IDs (CRITICAL STEP)
 For each product:
-1. Click on the product name
-2. Look for the Price ID (starts with `price_`)
-3. Copy the Price ID
+1. **Click on the product name** (like "Starter Pack")
+2. **Look for the "Pricing" section**
+3. **Find the Price ID** that starts with `price_` (NOT `prod_`)
+4. **Copy the Price ID** (should look like: `price_1OP2QR3STUvwxYZ...`)
+
+## 🖼️ Visual Guide:
+
+When you click on a product in Stripe Dashboard, you'll see:
+
+```
+Product Details
+├── Product ID: prod_SrhEurGXrG6ZB1  ← ❌ DON'T USE THIS
+└── Pricing
+    ├── Default Price: $19.00 USD
+    └── Price ID: price_1OP2QR3STUvwxYZ  ← ✅ USE THIS!
+```
 
 ### 4. Update Your Environment Variables
 
-Replace these placeholder values in your `.env` file:
+Replace the Product ID (`prod_SrhEurGXrG6ZB1`) with the actual **Price IDs**:
 
 ```bash
-# Replace these with your actual Price IDs from Stripe Dashboard
-STRIPE_STARTER_PRICE_ID=price_1ABC123def456      # Replace with actual ID
-STRIPE_PROFESSIONAL_PRICE_ID=price_1XYZ789ghi012  # Replace with actual ID  
-STRIPE_ENTERPRISE_PRICE_ID=price_1QRS456jkl789    # Replace with actual ID
+# Replace these with PRICE IDs (starting with price_) NOT Product IDs
+STRIPE_STARTER_PRICE_ID=price_1OP2QR3STUvwxYZ      # ✅ Starts with price_
+STRIPE_PROFESSIONAL_PRICE_ID=price_1ABC123def456   # ✅ Starts with price_
+STRIPE_ENTERPRISE_PRICE_ID=price_1XYZ789ghi012     # ✅ Starts with price_
 ```
 
 ### 5. Deploy to Railway
