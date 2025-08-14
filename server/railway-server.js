@@ -3070,7 +3070,7 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
     const sessionData = {
       customer: customerId,
       payment_method_types: ['card'],
-      mode: 'payment',
+      mode: 'subscription', // Changed from 'payment' to 'subscription'
       line_items: [
         {
           price: priceId, // Use your actual Stripe Price ID
