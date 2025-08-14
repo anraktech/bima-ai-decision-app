@@ -614,8 +614,8 @@ once
               onClick={() => {
                 // Direct payment link redirect - no components, no complexity
                 const links = {
-                  starter: 'https://buy.stripe.com/6oUeVdgEdchp5MX3ed3cc00', // Update this to $10 in Stripe
-                  enterprise: 'https://buy.stripe.com/3cI5kDgEd6X5fnx8yx3cc02' // Update this to $500 one-time in Stripe
+                  starter: 'https://buy.stripe.com/6oUeVdgEdchp5MX3ed3cc00', // $10/month
+                  enterprise: 'https://buy.stripe.com/3cI5kDgEd6X5fnx8yx3cc02' // $500 one-time
                 };
                 const paymentLink = links[selectedPaymentPlan.type as keyof typeof links];
                 if (paymentLink) {
