@@ -25,7 +25,13 @@ export const PaymentLinkButton: React.FC<PaymentLinkButtonProps> = ({
     // Build the payment link with tracking parameters
     const paymentLink = `${basePaymentLink}?client_reference_id=${userId}&prefilled_email=${encodeURIComponent(userEmail)}`;
     
-    console.log('Redirecting to Stripe Payment Link:', paymentLink);
+    console.log('=== PAYMENT LINK DEBUG ===');
+    console.log('Plan Type:', planType);
+    console.log('Base Payment Link:', basePaymentLink);
+    console.log('User ID:', userId);
+    console.log('User Email:', userEmail);
+    console.log('Final Payment Link:', paymentLink);
+    console.log('Redirecting to Stripe Payment Link NOW...');
     
     // Simply redirect to Stripe's payment link
     // No API calls, no complex integration, just a redirect!
