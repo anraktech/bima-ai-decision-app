@@ -54,8 +54,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       const response = await fetch(`${API_URL}/api/stripe/validate-coupon`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ code: couponCode })
       });
