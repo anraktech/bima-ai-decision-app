@@ -7,6 +7,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useUsageMonitor } from '../hooks/useUsageMonitor';
 import { UsageLimitModal } from '../components/UsageLimitModal';
+import { API_URL } from '../config/api';
 import { Database, LogOut, User, Users, Globe, Brain, Mail, Phone, MapPin, FileText, HelpCircle, CreditCard, Menu, X, Flame, CheckCircle, XCircle } from 'lucide-react';
 
 export function Dashboard() {
