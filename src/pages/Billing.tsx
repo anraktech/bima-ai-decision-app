@@ -391,24 +391,7 @@ export const Billing = () => {
           )}
         </div>
 
-        {/* Debug Test Button - Remove after testing */}
-        <div className="mb-8 p-4 bg-yellow-100 border-2 border-yellow-500 rounded-lg">
-          <p className="text-sm font-bold mb-2">TEST DIRECT PAYMENT (Remove after testing)</p>
-          <div className="flex gap-4">
-            <button
-              onClick={() => {
-                const testUrl = 'https://buy.stripe.com/6oUeVdgEdchp5MX3ed3cc00?client_reference_id=test&prefilled_email=test@example.com';
-                console.log('TEST: Direct redirect to Starter plan:', testUrl);
-                window.location.href = testUrl;
-              }}
-              className="px-4 py-2 bg-blue-500 text-white rounded"
-            >
-              Test Starter Payment
-            </button>
-          </div>
-        </div>
-
-        {/* Pricing Grid */}
+{/* Pricing Grid */}
         <div className="grid lg:grid-cols-4 gap-8 mb-16">
           {pricingTiers.map((tier) => (
             <div

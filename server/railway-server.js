@@ -2801,12 +2801,45 @@ app.post('/api/stripe/webhook', express.raw({type: 'application/json'}), async (
 async function handleCheckoutCompleted(session) {
   try {
     console.log('🎉 Checkout session completed:', session.id);
+    console.log('Session data:', JSON.stringify({
+      client_reference_id: session.client_reference_id,
+      customer_email: session.customer_email,
+      metadata: session.metadata,
+      line_items: session.line_items?.data?.[0]?.description
+    }, null, 2));
     
-    const userId = session.metadata?.userId;
-    const planType = session.metadata?.planType;
+    // For payment links, the user ID comes from client_reference_id
+    const userId = session.client_reference_id || session.metadata?.userId;
+    
+    // Detect plan type from the line items or amount
+    let planType = session.metadata?.planType;
+    
+    if (!planType) {
+      // Try to detect from the amount paid
+      const amountTotal = session.amount_total;
+      if (amountTotal === 1900) {
+        planType = 'starter';
+      } else if (amountTotal === 4900) {
+        planType = 'professional';
+      } else if (amountTotal === 19900) {
+        planType = 'enterprise';
+      } else {
+        // Try to get from line items description
+        const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
+        const description = lineItems.data[0]?.description?.toLowerCase() || '';
+        
+        if (description.includes('starter')) {
+          planType = 'starter';
+        } else if (description.includes('professional')) {
+          planType = 'professional';
+        } else if (description.includes('enterprise')) {
+          planType = 'enterprise';
+        }
+      }
+    }
     
     if (!userId || !planType) {
-      console.error('Missing userId or planType in session metadata:', session.metadata);
+      console.error('Missing userId or planType:', { userId, planType, session: session.id });
       return;
     }
 
