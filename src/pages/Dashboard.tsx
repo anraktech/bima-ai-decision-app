@@ -1,25 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppState } from '../hooks/useAppState';
 import { Header } from '../components/Header';
 import { SetupPanel } from '../components/SetupPanel';
 import { ConversationView } from '../components/ConversationView';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useUsageMonitor } from '../hooks/useUsageMonitor';
 import { UsageLimitModal } from '../components/UsageLimitModal';
-import { Database, LogOut, User, Users, Globe, Brain, Mail, Phone, MapPin, FileText, HelpCircle, CreditCard, Menu, X, Flame } from 'lucide-react';
+import { Database, LogOut, User, Users, Globe, Brain, Mail, Phone, MapPin, FileText, HelpCircle, CreditCard, Menu, X, Flame, CheckCircle, XCircle } from 'lucide-react';
 
 export function Dashboard() {
   const { state, actions } = useAppState();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showDocumentation, setShowDocumentation] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<'success' | 'cancelled' | null>(null);
 
   // Usage monitoring for over-limit users
   const { showLimitModal, closeModal, getUsageStatus } = useUsageMonitor();
+
+  // Handle payment success/failure from Stripe Checkout
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const payment = urlParams.get('payment');
+    
+    if (payment === 'success') {
+      setPaymentStatus('success');
+      // Clear the URL parameter
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Auto-hide success message after 5 seconds
+      setTimeout(() => {
+        setPaymentStatus(null);
+      }, 5000);
+    } else if (payment === 'cancelled') {
+      setPaymentStatus('cancelled');
+      // Clear the URL parameter
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Auto-hide cancelled message after 3 seconds
+      setTimeout(() => {
+        setPaymentStatus(null);
+      }, 3000);
+    }
+  }, [location.search]);
 
   const handleLogout = () => {
     logout();
@@ -537,6 +565,42 @@ export function Dashboard() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Payment Status Notifications */}
+      {paymentStatus && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-5 duration-300">
+          {paymentStatus === 'success' && (
+            <div className="bg-green-600 text-white px-6 py-4 rounded-lg shadow-lg flex items-center space-x-3">
+              <CheckCircle className="w-6 h-6" />
+              <div>
+                <p className="font-medium">Payment Successful!</p>
+                <p className="text-sm text-green-100">Your subscription has been upgraded.</p>
+              </div>
+              <button
+                onClick={() => setPaymentStatus(null)}
+                className="text-green-100 hover:text-white ml-4"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          {paymentStatus === 'cancelled' && (
+            <div className="bg-red-600 text-white px-6 py-4 rounded-lg shadow-lg flex items-center space-x-3">
+              <XCircle className="w-6 h-6" />
+              <div>
+                <p className="font-medium">Payment Cancelled</p>
+                <p className="text-sm text-red-100">Your payment was cancelled.</p>
+              </div>
+              <button
+                onClick={() => setPaymentStatus(null)}
+                className="text-red-100 hover:text-white ml-4"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 

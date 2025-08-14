@@ -1,17 +1,7 @@
-import { useState, useEffect } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
-import {
-  Elements,
-  CardElement,
-  useStripe,
-  useElements
-} from '@stripe/react-stripe-js';
-import { X, CreditCard, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { X, CreditCard, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config/api';
-
-// Initialize Stripe
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -37,11 +27,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   onClose,
   onSuccess
 }) => {
-  const stripe = useStripe();
-  const elements = useElements();
   const { user, token } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [couponApplied, setCouponApplied] = useState<{ code: string; discount: number; couponId?: string; amountOff?: number } | null>(null);
@@ -88,44 +75,13 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
     setErrorMessage('');
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    if (!stripe || !elements) {
-      return;
-    }
-
-    const cardElement = elements.getElement(CardElement);
-    if (!cardElement) {
-      return;
-    }
-
+  const handleStripeCheckout = async () => {
     setIsProcessing(true);
-    setPaymentStatus('processing');
     setErrorMessage('');
 
     try {
-      // Create Stripe customer
-      const customerResponse = await fetch(`${API_URL}/api/stripe/create-customer`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          email: user?.email,
-          name: user?.name
-        })
-      });
-
-      if (!customerResponse.ok) {
-        throw new Error('Failed to create customer');
-      }
-
-      const { customer_id } = await customerResponse.json();
-
-      // Create payment intent
-      const paymentIntentResponse = await fetch(`${API_URL}/api/stripe/create-payment-intent`, {
+      // Create checkout session
+      const response = await fetch(`${API_URL}/api/stripe/create-checkout-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -133,142 +89,29 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
         },
         body: JSON.stringify({
           planType,
-          customerId: customer_id,
-          amount: Math.round(finalPrice * 100), // Convert to cents
           couponCode: couponApplied?.code,
-          couponId: couponApplied?.couponId
+          successUrl: `${window.location.origin}/dashboard?payment=success`,
+          cancelUrl: `${window.location.origin}/dashboard?payment=cancelled`
         })
       });
 
-      if (!paymentIntentResponse.ok) {
-        throw new Error('Failed to create payment intent');
+      if (!response.ok) {
+        throw new Error('Failed to create checkout session');
       }
 
-      const { client_secret } = await paymentIntentResponse.json();
-
-      // Simple payment confirmation without complex authentication
-      const { error, paymentIntent } = await stripe.confirmCardPayment(client_secret, {
-        payment_method: {
-          card: cardElement,
-          billing_details: {
-            name: user?.name,
-            email: user?.email,
-          },
-        },
-      });
-
-      if (error) {
-        console.error('Payment failed:', error);
-        // Handle specific error types better
-        if (error.type === 'authentication_error') {
-          setErrorMessage('Payment authentication failed. Please try a different card or contact your bank.');
-        } else if (error.code === 'payment_intent_authentication_failure') {
-          setErrorMessage('Payment verification failed. Please try again with a different payment method.');
-        } else {
-          setErrorMessage(error.message || 'Payment failed');
-        }
-        setPaymentStatus('error');
-      } else if (paymentIntent.status === 'succeeded') {
-        setPaymentStatus('success');
-        
-        // Update local subscription for successful payment
-        await fetch(`${API_URL}/api/subscription/upgrade`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            planType
-          })
-        });
-
-        setTimeout(() => {
-          onSuccess();
-          onClose();
-        }, 2000);
-      } else if (paymentIntent.status === 'requires_action') {
-        // Handle 3D Secure or other authentication
-        const { error: confirmError, paymentIntent: confirmedPaymentIntent } = await stripe.confirmCardPayment(client_secret);
-        if (confirmError) {
-          setErrorMessage(confirmError.message || 'Payment authentication failed');
-          setPaymentStatus('error');
-        } else if (confirmedPaymentIntent.status === 'succeeded') {
-          setPaymentStatus('success');
-          
-          // Update local subscription for successful authenticated payment
-          await fetch(`${API_URL}/api/subscription/upgrade`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              planType
-            })
-          });
-
-          setTimeout(() => {
-            onSuccess();
-            onClose();
-          }, 2000);
-        } else {
-          setErrorMessage('Payment requires additional verification. Please try again.');
-          setPaymentStatus('error');
-        }
-      } else {
-        setErrorMessage('Payment failed. Please try again.');
-        setPaymentStatus('error');
-      }
+      const { url } = await response.json();
+      
+      // Redirect to Stripe Checkout
+      window.location.href = url;
     } catch (error) {
-      console.error('Payment error:', error);
-      setErrorMessage(error instanceof Error ? error.message : 'Payment failed');
-      setPaymentStatus('error');
-    } finally {
+      console.error('Checkout error:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to start checkout');
       setIsProcessing(false);
     }
   };
 
-  if (paymentStatus === 'success') {
-    return (
-      <div className="text-center py-8">
-        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">Payment Successful!</h3>
-        <p className="text-gray-600 mb-4">
-          Welcome to the {planName} plan! Your upgrade is being processed.
-        </p>
-        <div className="flex space-x-2 justify-center">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce"></div>
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Card Details
-        </label>
-        <div className="border border-gray-300 rounded-lg p-4 bg-white">
-          <CardElement
-            options={{
-              style: {
-                base: {
-                  fontSize: '16px',
-                  color: '#424770',
-                  '::placeholder': {
-                    color: '#aab7c4',
-                  },
-                },
-              },
-            }}
-          />
-        </div>
-      </div>
-
+    <div className="space-y-6">
       {/* Coupon Code Section */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -346,6 +189,19 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
         )}
       </div>
 
+      {/* Information about Stripe Checkout */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <ExternalLink className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <h4 className="text-sm font-medium text-blue-900">Secure Stripe Checkout</h4>
+            <p className="text-sm text-blue-700 mt-1">
+              You'll be redirected to Stripe's secure payment page to complete your purchase. All major cards accepted.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="flex space-x-3">
         <button
           type="button"
@@ -356,18 +212,19 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
           Cancel
         </button>
         <button
-          type="submit"
-          disabled={!stripe || isProcessing}
+          onClick={handleStripeCheckout}
+          disabled={isProcessing}
           className="flex-1 py-3 px-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center space-x-2"
         >
           {isProcessing ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Processing...</span>
+              <span>Redirecting...</span>
             </>
           ) : (
             <>
               <CreditCard className="w-4 h-4" />
+              <ExternalLink className="w-4 h-4" />
               <span>Pay ${finalPrice.toFixed(2)}</span>
             </>
           )}
@@ -377,7 +234,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       <p className="text-xs text-gray-500 text-center">
         Your payment is secured by Stripe. You can cancel anytime.
       </p>
-    </form>
+    </div>
   );
 };
 
@@ -419,15 +276,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
         {/* Content */}
         <div className="p-6">
-          <Elements stripe={stripePromise}>
-            <CheckoutForm
-              planType={planType}
-              planName={planName}
-              planPrice={planPrice}
-              onClose={onClose}
-              onSuccess={onSuccess}
-            />
-          </Elements>
+          <CheckoutForm
+            planType={planType}
+            planName={planName}
+            planPrice={planPrice}
+            onClose={onClose}
+            onSuccess={onSuccess}
+          />
         </div>
       </div>
     </div>

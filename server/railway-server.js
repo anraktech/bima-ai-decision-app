@@ -2705,6 +2705,10 @@ app.post('/api/stripe/webhook', express.raw({type: 'application/json'}), async (
 
     // Handle the event
     switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutCompleted(event.data.object);
+        break;
+        
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
         await handleSubscriptionUpdate(event.data.object);
@@ -2734,6 +2738,80 @@ app.post('/api/stripe/webhook', express.raw({type: 'application/json'}), async (
 });
 
 // Helper functions for webhook handling
+async function handleCheckoutCompleted(session) {
+  try {
+    console.log('🎉 Checkout session completed:', session.id);
+    
+    const userId = session.metadata?.userId;
+    const planType = session.metadata?.planType;
+    
+    if (!userId || !planType) {
+      console.error('Missing userId or planType in session metadata:', session.metadata);
+      return;
+    }
+
+    // Define plan limits
+    const planLimits = {
+      starter: 250000,
+      professional: 750000,
+      enterprise: 3000000
+    };
+
+    const tokenLimit = planLimits[planType];
+    if (!tokenLimit) {
+      console.error('Invalid plan type:', planType);
+      return;
+    }
+
+    // Calculate new billing period
+    const now = new Date();
+    const nextBillingDate = new Date();
+    nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+
+    // Update user subscription in database
+    const updateSubscription = db.prepare(`
+      UPDATE user_subscriptions 
+      SET current_plan = ?, 
+          token_limit = ?, 
+          tokens_used = 0,
+          billing_period_start = ?, 
+          billing_period_end = ?,
+          last_updated = CURRENT_TIMESTAMP
+      WHERE user_id = ?
+    `);
+
+    const result = updateSubscription.run(
+      planType,
+      tokenLimit,
+      now.toISOString(),
+      nextBillingDate.toISOString(),
+      userId
+    );
+
+    if (result.changes === 0) {
+      // Insert new subscription if none exists
+      const insertSubscription = db.prepare(`
+        INSERT INTO user_subscriptions (
+          user_id, current_plan, token_limit, tokens_used, 
+          billing_period_start, billing_period_end, last_updated
+        ) VALUES (?, ?, ?, 0, ?, ?, CURRENT_TIMESTAMP)
+      `);
+      
+      insertSubscription.run(
+        userId,
+        planType,
+        tokenLimit,
+        now.toISOString(),
+        nextBillingDate.toISOString()
+      );
+    }
+
+    console.log(`✅ Successfully upgraded user ${userId} to ${planType} plan`);
+  } catch (error) {
+    console.error('Error handling checkout completion:', error);
+  }
+}
+
 async function handleSubscriptionUpdate(subscription) {
   try {
     const userId = subscription.metadata.user_id;
@@ -2915,47 +2993,96 @@ app.post('/api/stripe/validate-coupon', async (req, res) => {
   }
 });
 
-app.post('/api/stripe/create-payment-intent', authenticateUser, async (req, res) => {
+// Create Stripe Checkout Session (NO MORE CAPTCHA ISSUES!)
+app.post('/api/stripe/create-checkout-session', authenticateUser, async (req, res) => {
   if (!stripe) {
     return res.status(500).json({ error: 'Stripe not configured' });
   }
   try {
-    const { planType, customerId, amount, couponCode, couponId } = req.body;
+    const { planType, couponCode, successUrl, cancelUrl } = req.body;
     
-    // If custom amount is provided (with coupon), use it
-    let finalAmount = amount;
+    // Define plan amounts and names
+    const plans = {
+      starter: { amount: 1900, name: 'Starter Pack - 250K tokens/month' },
+      professional: { amount: 4900, name: 'Professional - 750K tokens/month' },
+      enterprise: { amount: 19900, name: 'Enterprise - 3M tokens/month' }
+    };
     
-    if (!finalAmount) {
-      // Define plan amounts (in cents)
-      const planAmounts = {
-        starter: 1900, // $19.00
-        professional: 4900, // $49.00
-        enterprise: 19900 // $199.00
-      };
-      finalAmount = planAmounts[planType];
-      if (!finalAmount) {
-        return res.status(400).json({ error: 'Invalid plan type' });
+    const plan = plans[planType];
+    if (!plan) {
+      return res.status(400).json({ error: 'Invalid plan type' });
+    }
+
+    // Create or find customer
+    let customerId;
+    try {
+      const customers = await stripe.customers.list({
+        email: req.user.email,
+        limit: 1,
+      });
+      
+      if (customers.data.length > 0) {
+        customerId = customers.data[0].id;
+      } else {
+        const customer = await stripe.customers.create({
+          email: req.user.email,
+          name: req.user.name,
+        });
+        customerId = customer.id;
       }
+    } catch (customerError) {
+      console.error('Customer creation error:', customerError);
+      return res.status(500).json({ error: 'Failed to create customer' });
     }
     
-    // Create a simple payment intent without fraud detection triggers
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: finalAmount,
-      currency: 'usd',
+    const sessionData = {
       customer: customerId,
       payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: plan.name,
+              description: `Upgrade to ${planType} plan`
+            },
+            unit_amount: plan.amount,
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: successUrl || `${process.env.CLIENT_URL || 'https://bima-ai-decision-app-nzwf.vercel.app'}/dashboard?payment=success`,
+      cancel_url: cancelUrl || `${process.env.CLIENT_URL || 'https://bima-ai-decision-app-nzwf.vercel.app'}/dashboard?payment=cancelled`,
       metadata: {
         planType: planType,
         userId: req.user?.id || '',
-        couponCode: couponCode || '',
-        couponId: couponId || ''
+        couponCode: couponCode || ''
       }
-    });
+    };
     
-    res.json({ client_secret: paymentIntent.client_secret });
+    // Apply coupon if provided
+    if (couponCode) {
+      try {
+        const promotionCodes = await stripe.promotionCodes.list({
+          code: couponCode.toUpperCase(),
+          limit: 1
+        });
+        
+        if (promotionCodes.data.length > 0 && promotionCodes.data[0].active) {
+          sessionData.discounts = [{ promotion_code: promotionCodes.data[0].id }];
+        }
+      } catch (couponError) {
+        console.error('Coupon error (proceeding without):', couponError);
+      }
+    }
+    
+    const session = await stripe.checkout.sessions.create(sessionData);
+    
+    res.json({ url: session.url, session_id: session.id });
   } catch (error) {
-    console.error('Create payment intent error:', error);
-    res.status(500).json({ error: 'Failed to create payment intent' });
+    console.error('Create checkout session error:', error);
+    res.status(500).json({ error: 'Failed to create checkout session' });
   }
 });
 
