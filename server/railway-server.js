@@ -385,6 +385,31 @@ app.options('*', (req, res) => {
 
 app.use(express.json());
 
+// Auth middleware
+const authenticateUser = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authentication token required' });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Get user from database to ensure they still exist
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(decoded.id);
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
 // Multer configuration for file uploads
 const storage = multer.memoryStorage(); // Store files in memory for processing
 const upload = multer({
