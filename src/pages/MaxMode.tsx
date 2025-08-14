@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { BaseModelDropdown } from '../components/BaseModelDropdown';
 import { ProfessionalPersonaDropdown } from '../components/ProfessionalPersonaDropdown';
+import { useUsageMonitor } from '../hooks/useUsageMonitor';
+import { UsageLimitModal } from '../components/UsageLimitModal';
 import type { AIModel } from '../types';
 import type { ProfessionalPersona } from '../data/professionalPersonas';
 
@@ -37,6 +39,11 @@ interface ModelConfig {
 export function MaxMode() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  // Usage monitoring for blocking over-limit users
+  const { showLimitModal, closeModal, getUsageStatus } = useUsageMonitor();
+  const usageStatus = getUsageStatus();
+  const isOverLimit = usageStatus?.isOverLimit || false;
   
   const [models, setModels] = useState<ModelConfig[]>([
     { 
@@ -125,6 +132,12 @@ export function MaxMode() {
   const startConversation = () => {
     if (!isReadyToStart()) return;
     
+    // Block over-limit users from starting conversations
+    if (isOverLimit) {
+      // The usage limit modal will automatically show due to useUsageMonitor
+      return;
+    }
+    
     const activeModels = models.filter(m => m.model !== null);
     navigate('/max-conversation', {
       state: {
@@ -175,14 +188,16 @@ export function MaxMode() {
               onClick={startConversation}
               disabled={!isReadyToStart()}
               className={`flex items-center space-x-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg font-medium transition-all shadow-md ${
-                isReadyToStart() 
+                isOverLimit
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : isReadyToStart() 
                   ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700' 
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               }`}
             >
               <Play className="w-4 h-4" />
-              <span className="hidden sm:inline">Launch Arena</span>
-              <span className="sm:hidden">Start</span>
+              <span className="hidden sm:inline">{isOverLimit ? 'Upgrade Required' : 'Launch Arena'}</span>
+              <span className="sm:hidden">{isOverLimit ? 'Upgrade' : 'Start'}</span>
             </button>
           </div>
         </div>
@@ -399,18 +414,32 @@ export function MaxMode() {
                 onClick={startConversation}
                 disabled={!isReadyToStart()}
                 className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2.5 rounded-lg font-medium transition-all shadow-md ${
-                  isReadyToStart() 
+                  isOverLimit
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : isReadyToStart() 
                     ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700' 
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }`}
               >
                 <Play className="w-4 h-4" />
-                <span>Start Arena</span>
+                <span>{isOverLimit ? 'Upgrade Required' : 'Start Arena'}</span>
               </button>
             </div>
           </div>
         </div>
       </div>
+      
+      {/* Usage Limit Modal */}
+      {showLimitModal && usageStatus && (
+        <UsageLimitModal
+          isOpen={showLimitModal}
+          onClose={closeModal}
+          currentUsage={usageStatus.currentUsage}
+          usageLimit={usageStatus.usageLimit}
+          currentPlan={usageStatus.currentPlan}
+          overageAmount={usageStatus.overageAmount}
+        />
+      )}
     </div>
   );
 }
