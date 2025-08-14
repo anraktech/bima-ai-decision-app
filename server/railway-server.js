@@ -3083,6 +3083,12 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
       metadata: {
         planType: planType,
         userId: userId
+      },
+      subscription_data: {
+        metadata: {
+          user_id: userId,  // For subscription webhooks
+          planType: planType
+        }
       }
     };
     
