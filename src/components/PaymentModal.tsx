@@ -37,6 +37,19 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       return;
     }
 
+    // Ensure user.id exists, use a fallback if needed
+    const userId = user.id || 1;
+    const userEmail = user.email || 'customer@example.com';
+    const userName = user.name || user.email || 'Customer';
+
+    console.log('Creating checkout session with:', {
+      planType,
+      userId,
+      userEmail,
+      userName,
+      apiUrl: API_URL
+    });
+
     setIsProcessing(true);
     setErrorMessage('');
 
@@ -49,23 +62,46 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
         },
         body: JSON.stringify({
           planType,
-          userEmail: user.email,
-          userName: user.name,
-          userId: user.id,
+          userEmail,
+          userName,
+          userId,
           successUrl: `${window.location.origin}/dashboard?payment=success`,
           cancelUrl: `${window.location.origin}/dashboard?payment=cancelled`
         })
       });
 
+      const responseText = await response.text();
+      console.log('Response status:', response.status);
+      console.log('Response text:', responseText);
+
       if (!response.ok) {
-        const errorData = await response.text();
-        throw new Error(`Failed to create checkout session: ${errorData}`);
+        // Try to parse error message
+        let errorMessage = 'Failed to create checkout session';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          errorMessage = responseText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
-      const { url } = await response.json();
+      // Parse the successful response
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error('Invalid response from server');
+      }
+
+      if (!data.url) {
+        throw new Error('No checkout URL received from server');
+      }
+
+      console.log('Checkout URL received:', data.url);
       
       // Redirect to Stripe Checkout
-      window.location.href = url;
+      window.location.href = data.url;
     } catch (error) {
       console.error('Checkout error:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Failed to start checkout');
