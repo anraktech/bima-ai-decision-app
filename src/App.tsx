@@ -35,6 +35,30 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return user ? <>{children}</> : <Navigate to="/login" />;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-3 border-black border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Direct admin check here
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+  
+  if (user.email !== 'kapil@anrak.io') {
+    console.log('Non-admin access attempt:', user.email);
+    return <Navigate to="/dashboard" />;
+  }
+
+  return <>{children}</>;
+}
+
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
 
@@ -154,9 +178,9 @@ function App() {
                 </PrivateRoute>
               } />
               <Route path="/admin4921" element={
-                <PrivateRoute>
+                <AdminRoute>
                   <Admin4921 />
-                </PrivateRoute>
+                </AdminRoute>
               } />
             </Routes>
           </PageTransition>

@@ -47,20 +47,12 @@ export const Admin4921 = () => {
     enterprisePlans: 0
   });
 
-  // Check if user is admin
+  // Load users when component mounts
   useEffect(() => {
-    // Only check after user is loaded
-    if (user) {
-      if (user.email !== 'kapil@anrak.io') {
-        console.log('Non-admin user attempting to access admin panel:', user.email);
-        navigate('/dashboard');
-      } else {
-        console.log('Admin access granted for:', user.email);
-        setIsCheckingAuth(false);
-        fetchUsers();
-      }
-    }
-  }, [user]);
+    console.log('Admin access granted for:', user?.email);
+    setIsCheckingAuth(false);
+    fetchUsers();
+  }, []);
 
   const fetchUsers = async () => {
     try {
@@ -203,11 +195,6 @@ export const Admin4921 = () => {
         </div>
       </div>
     );
-  }
-  
-  // Double-check admin access
-  if (!user || user.email !== 'kapil@anrak.io') {
-    return null;
   }
 
   return (
