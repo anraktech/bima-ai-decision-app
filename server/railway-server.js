@@ -3359,6 +3359,40 @@ testEmailConfiguration().then(result => {
   }
 });
 
+// Admin endpoint to manually update user subscription (temporary fix)
+app.post('/api/admin/update-subscription', (req, res) => {
+  const { email, tier, adminKey } = req.body;
+  
+  // Simple admin key check
+  if (adminKey !== 'anrak-admin-2025') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    const user = db.prepare('SELECT id, email FROM users WHERE email = ?').get(email);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const result = db.prepare('UPDATE users SET subscription_tier = ? WHERE email = ?').run(tier, email);
+    
+    if (result.changes > 0) {
+      console.log(`✅ Admin update: ${email} -> ${tier} plan`);
+      res.json({ 
+        success: true, 
+        message: `Updated ${email} to ${tier} plan`,
+        user: { email, subscription_tier: tier }
+      });
+    } else {
+      res.status(500).json({ error: 'Update failed' });
+    }
+  } catch (error) {
+    console.error('Admin update error:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Railway server running on http://localhost:${PORT}`);
