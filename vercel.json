@@ -1,10 +1,16 @@
 {
   "env": {
-    "VITE_API_URL": "https://bima-ai-decision-app-production.up.railway.app"
+    "VITE_API_URL": "https://anrak.tech"
   },
   "build": {
     "env": {
-      "VITE_API_URL": "https://bima-ai-decision-app-production.up.railway.app"
+      "VITE_API_URL": "https://anrak.tech"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
