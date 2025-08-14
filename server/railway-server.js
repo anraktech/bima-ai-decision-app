@@ -3005,16 +3005,19 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields: planType, userEmail, userId' });
     }
     
-    // Define plan amounts and names
-    const plans = {
-      starter: { amount: 1900, name: 'Starter Pack - 250K tokens/month' },
-      professional: { amount: 4900, name: 'Professional - 750K tokens/month' },
-      enterprise: { amount: 19900, name: 'Enterprise - 3M tokens/month' }
+    // Use actual Stripe Price IDs from your products
+    const planPriceIds = {
+      starter: process.env.STRIPE_STARTER_PRICE_ID,
+      professional: process.env.STRIPE_PROFESSIONAL_PRICE_ID, 
+      enterprise: process.env.STRIPE_ENTERPRISE_PRICE_ID
     };
     
-    const plan = plans[planType];
-    if (!plan) {
-      return res.status(400).json({ error: 'Invalid plan type' });
+    const priceId = planPriceIds[planType];
+    if (!priceId || priceId.includes('_id_here')) {
+      console.error(`Missing or placeholder Price ID for ${planType}: ${priceId}`);
+      return res.status(400).json({ 
+        error: `Stripe Price ID not configured for ${planType} plan. Please set STRIPE_${planType.toUpperCase()}_PRICE_ID in environment variables.` 
+      });
     }
 
     // Create or find customer
@@ -3045,14 +3048,7 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
       mode: 'payment',
       line_items: [
         {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: plan.name,
-              description: `Upgrade to ${planType} plan`
-            },
-            unit_amount: plan.amount,
-          },
+          price: priceId, // Use your actual Stripe Price ID
           quantity: 1,
         },
       ],
