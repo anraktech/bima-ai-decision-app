@@ -383,6 +383,66 @@ app.options('*', (req, res) => {
   res.sendStatus(200);
 });
 
+// ========== STRIPE WEBHOOKS (BEFORE BODY PARSING) ==========
+// Stripe webhook endpoint - MUST be before express.json() middleware
+app.post('/api/stripe/webhook', express.raw({type: 'application/json'}), async (req, res) => {
+  try {
+    if (!stripe) {
+      return res.status(400).json({ error: 'Stripe not configured' });
+    }
+
+    const sig = req.headers['stripe-signature'];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!endpointSecret) {
+      console.error('Stripe webhook secret not configured');
+      return res.status(400).json({ error: 'Webhook secret not configured' });
+    }
+
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    } catch (err) {
+      console.error('Webhook signature verification failed:', err.message);
+      return res.status(400).json({ error: 'Webhook signature verification failed' });
+    }
+
+    console.log('📧 Stripe webhook received:', event.type);
+
+    // Handle the event
+    switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutCompleted(event.data.object);
+        break;
+        
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+        await handleSubscriptionUpdate(event.data.object);
+        break;
+        
+      case 'customer.subscription.deleted':
+        await handleSubscriptionCancellation(event.data.object);
+        break;
+        
+      case 'invoice.payment_succeeded':
+        await handlePaymentSuccess(event.data.object);
+        break;
+        
+      case 'invoice.payment_failed':
+        await handlePaymentFailure(event.data.object);
+        break;
+        
+      default:
+        console.log(`Unhandled Stripe event type: ${event.type}`);
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('Webhook processing error:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
 app.use(express.json());
 
 // Auth middleware
@@ -2768,45 +2828,73 @@ async function handleCheckoutCompleted(session) {
     const nextBillingDate = new Date();
     nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
 
-    // Update user subscription in database
-    const updateSubscription = db.prepare(`
-      UPDATE user_subscriptions 
-      SET current_plan = ?, 
-          token_limit = ?, 
-          tokens_used = 0,
-          billing_period_start = ?, 
-          billing_period_end = ?,
-          last_updated = CURRENT_TIMESTAMP
-      WHERE user_id = ?
+    // Update user's subscription_tier in the users table (FIXED: using correct table)
+    console.log(`📝 Updating user ${userId} subscription_tier to ${planType}`);
+    
+    const updateUser = db.prepare(`
+      UPDATE users 
+      SET subscription_tier = ?
+      WHERE id = ?
     `);
+    
+    const userResult = updateUser.run(planType, userId);
+    
+    if (userResult.changes === 0) {
+      console.error(`❌ Failed to update user ${userId} - user not found in users table`);
+      return;
+    }
+    
+    console.log(`✅ Updated user ${userId} subscription_tier to ${planType} in users table`);
 
-    const result = updateSubscription.run(
-      planType,
-      tokenLimit,
-      now.toISOString(),
-      nextBillingDate.toISOString(),
-      userId
-    );
-
-    if (result.changes === 0) {
-      // Insert new subscription if none exists
-      const insertSubscription = db.prepare(`
-        INSERT INTO user_subscriptions (
-          user_id, current_plan, token_limit, tokens_used, 
-          billing_period_start, billing_period_end, last_updated
-        ) VALUES (?, ?, ?, 0, ?, ?, CURRENT_TIMESTAMP)
-      `);
-      
-      insertSubscription.run(
-        userId,
+    // Also update or create subscription record in subscriptions table
+    const existingSub = db.prepare('SELECT id FROM subscriptions WHERE user_id = ? AND status = ?').get(userId, 'active');
+    
+    if (existingSub) {
+      // Update existing subscription
+      console.log(`📝 Updating existing subscription for user ${userId}`);
+      db.prepare(`
+        UPDATE subscriptions 
+        SET plan_type = ?, 
+            stripe_subscription_id = ?,
+            current_period_start = ?,
+            current_period_end = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ? AND status = 'active'
+      `).run(
         planType,
-        tokenLimit,
+        session.subscription || 'checkout_' + session.id,
+        now.toISOString(),
+        nextBillingDate.toISOString(),
+        userId
+      );
+      console.log(`✅ Updated subscription record for user ${userId}`);
+    } else {
+      // Create new subscription
+      console.log(`📝 Creating new subscription for user ${userId}`);
+      db.prepare(`
+        INSERT INTO subscriptions (
+          user_id, 
+          stripe_subscription_id,
+          stripe_customer_id,
+          plan_type,
+          status,
+          current_period_start,
+          current_period_end,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, 'active', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(
+        userId,
+        session.subscription || 'checkout_' + session.id,
+        session.customer,
+        planType,
         now.toISOString(),
         nextBillingDate.toISOString()
       );
+      console.log(`✅ Created subscription record for user ${userId}`);
     }
 
-    console.log(`✅ Successfully upgraded user ${userId} to ${planType} plan`);
+    console.log(`🎉 Successfully upgraded user ${userId} to ${planType} plan`);
   } catch (error) {
     console.error('Error handling checkout completion:', error);
   }
