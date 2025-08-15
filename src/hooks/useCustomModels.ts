@@ -30,7 +30,7 @@ export const useCustomModels = () => {
           id: `custom-${model.id}`,
           name: model.name,
           displayName: model.is_imported 
-            ? `${model.name} (by ${model.original_owner_name})`
+            ? `${model.name} (by ${model.original_owner_name || 'Unknown'})`
             : `${model.name} (Custom)`,
           isCustom: true,
           isShared: model.is_imported,

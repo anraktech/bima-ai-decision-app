@@ -179,24 +179,28 @@ export const useAppState = () => {
   }, []);
 
   const addUserIntervention = useCallback((intervention: string, targetAgent?: 'model-a' | 'model-b') => {
-    // Add the intervention message as the selected agent, not as user
-    addMessage({
-      content: intervention,
-      sender: targetAgent || 'model-b', // Post as the selected agent
+    setState(prev => {
+      const newMessage: Message = {
+        id: crypto.randomUUID(),
+        content: intervention,
+        sender: targetAgent || 'model-b',
+        timestamp: new Date(),
+      };
+
+      // Determine which agent should respond next (opposite of who just "spoke")
+      const nextResponder = (targetAgent || 'model-b') === 'model-a' ? 'model-b' : 'model-a';
+      
+      return {
+        ...prev,
+        conversation: {
+          ...prev.conversation,
+          messages: [...prev.conversation.messages, newMessage],
+          isWaitingForIntervention: false,
+          nextResponder // The opposite agent responds next
+        },
+      };
     });
-    
-    // Continue conversation from the OTHER agent (opposite of who just "spoke")
-    const nextResponder = targetAgent === 'model-a' ? 'model-b' : 'model-a';
-    
-    setState(prev => ({
-      ...prev,
-      conversation: {
-        ...prev.conversation,
-        isWaitingForIntervention: false,
-        nextResponder // The opposite agent responds next
-      },
-    }));
-  }, [addMessage]);
+  }, []);
 
   const resetConversation = useCallback(() => {
     setState(initialState);
@@ -241,6 +245,8 @@ export const useAppState = () => {
         const provider = activePanel.model?.provider || '';
         
         console.log('Making API call for model:', activePanel.model?.displayName, 'Provider:', provider, 'ModelID:', modelId);
+        console.log('System instructions length:', activePanel.systemInstructions?.length || 0);
+        console.log('System instructions preview:', activePanel.systemInstructions?.substring(0, 200) || 'None');
         
         // Check if it's a custom model and get its base model
         if (activePanel.model?.isCustom && activePanel.model?.baseModel) {
