@@ -170,6 +170,41 @@ async function applyDatabaseMigrations() {
     } catch (migrationError) {
       console.log('⚠️  Migration skipped (table may not exist yet):', migrationError.message);
     }
+
+    // Add missing content column to documents table
+    try {
+      console.log('🔄 Checking documents table for content column...');
+      const documentsTableCheck = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_name = 'documents'
+        )
+      `);
+      
+      if (documentsTableCheck.rows[0].exists) {
+        const contentColumnCheck = await pool.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'documents' 
+          AND column_name = 'content'
+        `);
+        
+        if (contentColumnCheck.rows.length === 0) {
+          // Add missing content column
+          await pool.query(`
+            ALTER TABLE documents 
+            ADD COLUMN content TEXT
+          `);
+          console.log('✅ Added missing content column to documents table');
+        } else {
+          console.log('✅ Documents table already has content column');
+        }
+      } else {
+        console.log('⚠️  Documents table does not exist yet');
+      }
+    } catch (contentMigrationError) {
+      console.log('❌ Content column migration error:', contentMigrationError.message);
+    }
     
     console.log('✅ Database migrations completed');
   } catch (error) {
