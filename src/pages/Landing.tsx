@@ -642,7 +642,7 @@ export const Landing = () => {
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8 sm:mb-12">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
             {/* Free Tier */}
             <div className="bg-white rounded-lg border-2 border-gray-200 p-6 sm:p-8">
               <div className="text-center mb-6 sm:mb-8">
@@ -690,7 +690,7 @@ export const Landing = () => {
             <div className="bg-white rounded-lg border-2 border-orange-500 p-6 sm:p-8 relative">
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                 <span className="bg-orange-500 text-white px-4 py-1 text-sm font-medium rounded-full">
-                  Most Popular
+                  Promo Price
                 </span>
               </div>
 
@@ -698,21 +698,21 @@ export const Landing = () => {
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-3 sm:mb-4">
                   <Rocket className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
                 </div>
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Starter</h3>
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Starter Plan</h3>
                 <div className="mb-3 sm:mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold text-gray-900">$19</span>
+                  <span className="text-3xl sm:text-4xl font-bold text-gray-900">$10</span>
                   <span className="text-gray-500 ml-1 text-sm sm:text-base">/month</span>
                 </div>
                 <p className="text-sm sm:text-base text-gray-600">
-                  <strong>250,000</strong> tokens/month
+                  <strong>Enhanced Features</strong>
                 </p>
-                <p className="text-xs sm:text-sm text-gray-500 mt-2">$0.76 per 10K beyond limit</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-2">Same model access as all plans</p>
               </div>
 
               <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
                 <div className="flex items-center space-x-2 sm:space-x-3">
                   <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 flex-shrink-0" />
-                  <span className="text-gray-700 text-xs sm:text-sm">All AI models available</span>
+                  <span className="text-gray-700 text-xs sm:text-sm">Same model access as all plans</span>
                 </div>
                 <div className="flex items-center space-x-2 sm:space-x-3">
                   <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 flex-shrink-0" />
@@ -720,11 +720,15 @@ export const Landing = () => {
                 </div>
                 <div className="flex items-center space-x-2 sm:space-x-3">
                   <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 flex-shrink-0" />
-                  <span className="text-gray-700 text-xs sm:text-sm">Extended history</span>
+                  <span className="text-gray-700 text-xs sm:text-sm">Advanced analytics & insights</span>
                 </div>
                 <div className="flex items-center space-x-2 sm:space-x-3">
                   <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 flex-shrink-0" />
-                  <span className="text-gray-700 text-xs sm:text-sm">Email support</span>
+                  <span className="text-gray-700 text-xs sm:text-sm">Custom model configurations</span>
+                </div>
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 flex-shrink-0" />
+                  <span className="text-gray-700 text-xs sm:text-sm">API access & webhooks</span>
                 </div>
               </div>
 
@@ -736,55 +740,12 @@ export const Landing = () => {
               </button>
             </div>
 
-            {/* Professional */}
-            <div className="bg-white rounded-lg border-2 border-gray-200 p-6 sm:p-8">
-              <div className="text-center mb-6 sm:mb-8">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-black rounded-lg flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                  <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                </div>
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Professional</h3>
-                <div className="mb-3 sm:mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold text-gray-900">$49</span>
-                  <span className="text-gray-500 ml-1 text-sm sm:text-base">/month</span>
-                </div>
-                <p className="text-sm sm:text-base text-gray-600">
-                  <strong>750,000</strong> tokens/month
-                </p>
-                <p className="text-xs sm:text-sm text-gray-500 mt-2">$0.65 per 10K beyond limit</p>
-              </div>
-
-              <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 flex-shrink-0" />
-                  <span className="text-gray-700 text-xs sm:text-sm">Advanced analytics</span>
-                </div>
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 flex-shrink-0" />
-                  <span className="text-gray-700 text-xs sm:text-sm">Conversation export</span>
-                </div>
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 flex-shrink-0" />
-                  <span className="text-gray-700 text-xs sm:text-sm">API access</span>
-                </div>
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-500 flex-shrink-0" />
-                  <span className="text-gray-700 text-xs sm:text-sm">Priority support</span>
-                </div>
-              </div>
-
-              <button 
-                onClick={() => navigate('/signup')}
-                className="w-full py-2.5 sm:py-3 px-3 sm:px-4 bg-black text-white font-semibold rounded-lg hover:bg-gray-800 transition-colors text-sm sm:text-base"
-              >
-                Upgrade Now
-              </button>
-            </div>
 
             {/* Enterprise */}
             <div className="bg-white rounded-lg border-2 border-purple-500 p-6 sm:p-8 relative">
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                 <span className="bg-purple-500 text-white px-3 sm:px-4 py-1 text-xs sm:text-sm font-medium rounded-full">
-                  Enterprise
+                  One-Time Payment
                 </span>
               </div>
 
@@ -792,15 +753,15 @@ export const Landing = () => {
                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-3 sm:mb-4">
                   <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
                 </div>
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Enterprise</h3>
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Enterprise Plan</h3>
                 <div className="mb-3 sm:mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold text-gray-900">$199</span>
-                  <span className="text-gray-500 ml-1 text-sm sm:text-base">/month</span>
+                  <span className="text-3xl sm:text-4xl font-bold text-gray-900">$500</span>
+                  <span className="text-gray-500 ml-1 text-sm sm:text-base">one-time</span>
                 </div>
                 <p className="text-sm sm:text-base text-gray-600">
-                  <strong>3M</strong> tokens/month
+                  <strong>Advanced Features</strong>
                 </p>
-                <p className="text-xs sm:text-sm text-gray-500 mt-2">$0.50 per 10K beyond limit</p>
+                <p className="text-xs sm:text-sm text-gray-500 mt-2">Use your own API keys</p>
               </div>
 
               <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">

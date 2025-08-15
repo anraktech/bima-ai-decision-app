@@ -67,14 +67,15 @@ export const Billing = () => {
       id: 'explore',
       name: 'Explore',
       price: 0,
-      tokens: '50,000',
-      overageRate: 'N/A',
+      tokens: 'Model Access',
+      overageRate: 'Same as all plans',
       icon: <Sparkles className="w-6 h-6" />,
       badge: 'Free Forever',
       color: 'gray',
       features: [
-        '50,000 free tokens/month',
-        'Access to all AI models',
+        'Ultra Premium: 20k tokens/day',
+        'Premium: 50k tokens/day',
+        'Standard & Free: Unlimited',
         'Basic conversation history',
         'Community support',
         'Standard processing speed'
@@ -82,17 +83,17 @@ export const Billing = () => {
     },
     {
       id: 'starter',
-      name: 'Starter',
+      name: 'Starter Plan',
       price: 10,
-      tokens: '750,000',
-      overageRate: '$0.50 per 10K',
+      tokens: 'Enhanced Features',
+      overageRate: 'Same model access as all plans',
       icon: <Rocket className="w-6 h-6" />,
       popular: true,
+      badge: 'Promo Price',
       color: 'orange',
       features: [
-        '750,000 tokens/month',
-        'All AI models available',
-        'Priority processing',
+        'Same model access as all plans',
+        'Priority processing (faster responses)',
         'Advanced analytics & insights',
         'Conversation history export',
         'API access & webhooks',
@@ -104,24 +105,24 @@ export const Billing = () => {
     },
     {
       id: 'enterprise',
-      name: 'Enterprise',
+      name: 'Enterprise Plan',
       price: 500,
-      tokens: 'Unlimited*',
+      tokens: 'Advanced Features',
       overageRate: 'Use your own API keys',
       icon: <Building2 className="w-6 h-6" />,
       badge: 'One-Time Payment',
       color: 'black',
       features: [
+        'Everything in Starter Plan',
         'Bring your own API keys',
-        'Unlimited tokens with your keys',
+        'Unlimited usage with your keys',
         'White-label options',
         'Custom branding',
         'Advanced team management',
         'Dedicated support',
         'Custom integrations',
         'Source code access',
-        'Lifetime updates',
-        'Priority feature requests'
+        'Lifetime updates'
       ]
     }
   ];
