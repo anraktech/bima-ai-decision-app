@@ -178,16 +178,36 @@ async function applyDatabaseMigrations() {
   }
 }
 
-// Debug endpoint to check database schema (remove after verification)
+// Debug endpoint to check database schema and tables
 app.get('/api/debug/schema', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'models' 
-      ORDER BY ordinal_position
+    // Check what tables exist
+    const tablesResult = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      ORDER BY table_name
     `);
-    res.json({ columns: result.rows });
+    
+    // Check community_posts columns if table exists
+    let communityColumns = [];
+    try {
+      const columnsResult = await pool.query(`
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_name = 'community_posts' 
+        ORDER BY ordinal_position
+      `);
+      communityColumns = columnsResult.rows;
+    } catch (err) {
+      // Table doesn't exist
+    }
+    
+    res.json({ 
+      tables: tablesResult.rows.map(r => r.table_name),
+      community_posts_columns: communityColumns,
+      database_url: process.env.DATABASE_PUBLIC_URL ? 'Connected' : 'Not connected'
+    });
   } catch (error) {
     console.error('Schema debug error:', error);
     res.status(500).json({ error: error.message });
