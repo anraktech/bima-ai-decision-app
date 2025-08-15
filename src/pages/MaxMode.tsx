@@ -21,6 +21,7 @@ import {
 import { BaseModelDropdown } from '../components/BaseModelDropdown';
 import { ProfessionalPersonaDropdown } from '../components/ProfessionalPersonaDropdown';
 import { useUsageMonitor } from '../hooks/useUsageMonitor';
+import { getModelTier } from '../config/usage-tiers';
 import { UsageLimitModal } from '../components/UsageLimitModal';
 import type { AIModel } from '../types';
 import type { ProfessionalPersona } from '../data/professionalPersonas';
@@ -43,7 +44,28 @@ export function MaxMode() {
   // Usage monitoring for blocking over-limit users
   const { showLimitModal, closeModal, getUsageStatus } = useUsageMonitor();
   const usageStatus = getUsageStatus();
-  const isOverLimit = usageStatus?.isOverLimit || false;
+  
+  // Check if user is over limit for the SPECIFIC models they want to use
+  const isOverLimitForSelectedModels = () => {
+    if (!usageStatus) return false;
+    
+    // Get tiers of all configured models
+    const configuredModels = models.filter(m => m.model);
+    if (configuredModels.length === 0) return false;
+    
+    // If ALL configured models are standard or free tier, NEVER block (unlimited)
+    const allModelsUnlimited = configuredModels.every(m => {
+      const tier = getModelTier(m.model!.id);
+      return tier === 'standard' || tier === 'free';
+    });
+    
+    if (allModelsUnlimited) return false;
+    
+    // If user is over general limit AND using premium/ultra_premium models, block
+    return usageStatus.isOverLimit;
+  };
+  
+  const isOverLimit = isOverLimitForSelectedModels();
   
   const [models, setModels] = useState<ModelConfig[]>([
     { 
@@ -213,6 +235,33 @@ export function MaxMode() {
               <p className="text-sm text-amber-700 mt-1">
                 MAX mode runs multiple AI models simultaneously, which will consume tokens at a higher rate than standard conversations.
               </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Performance Disclaimers */}
+        <div className="mb-6 space-y-3">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start space-x-3">
+              <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-blue-900">Performance Depends on Configuration</h3>
+                <p className="text-sm text-blue-700 mt-1">
+                  Model performance heavily depends on your system instructions and opening message. Clear, specific instructions yield better results.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-start space-x-3">
+              <RefreshCw className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-gray-900">Model Issues or Slow Performance?</h3>
+                <p className="text-sm text-gray-700 mt-1">
+                  If a model doesn't work properly or is too slow, try switching to a different model. Each AI model has different strengths and response times.
+                </p>
+              </div>
             </div>
           </div>
         </div>

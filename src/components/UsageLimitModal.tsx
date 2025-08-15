@@ -81,11 +81,14 @@ export const UsageLimitModal: React.FC<UsageLimitModalProps> = ({
           {/* Usage Progress */}
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-gray-700">Token Usage</span>
+              <span className="text-sm font-medium text-gray-700">Premium & Ultra Premium Token Usage</span>
               <span className="text-sm text-gray-500">
                 {currentUsage.toLocaleString()} / {usageLimit.toLocaleString()}
               </span>
             </div>
+            <p className="text-xs text-gray-600 bg-green-50 border border-green-200 rounded-lg p-2">
+              💡 <strong>Good News:</strong> Standard and Free tier models remain unlimited and can be used anytime!
+            </p>
             
             <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
               <div 
@@ -121,14 +124,14 @@ export const UsageLimitModal: React.FC<UsageLimitModalProps> = ({
             <p className={`text-sm ${isOverLimit ? 'text-red-800' : 'text-orange-800'}`}>
               {isOverLimit ? (
                 <>
-                  You've exceeded your monthly token limit by{' '}
+                  You've exceeded your monthly limit for <strong>Premium & Ultra Premium models</strong> by{' '}
                   <strong>{(overageAmount || 0).toLocaleString()} tokens</strong>. 
-                  Upgrade your plan to continue using AI models without interruption.
+                  Upgrade your plan to continue using premium AI models.
                 </>
               ) : (
                 <>
-                  You're approaching your monthly token limit. Consider upgrading 
-                  to avoid service interruption when you reach{' '}
+                  You're approaching your monthly limit for <strong>Premium & Ultra Premium models</strong>. Consider upgrading 
+                  to avoid premium model restrictions when you reach{' '}
                   <strong>{usageLimit.toLocaleString()} tokens</strong>.
                 </>
               )}

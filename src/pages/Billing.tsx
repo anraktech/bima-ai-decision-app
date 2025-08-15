@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { TierUsageCard } from '../components/TierUsageCard';
 // Removed PaymentLinkButton import - using direct implementation
 import { API_URL } from '../config/api';
 import { 
@@ -306,77 +307,9 @@ export const Billing = () => {
 
 
           {!isLoading && subscription && (
-            <div className="mt-8 max-w-2xl mx-auto">
-              <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Current Subscription</h3>
-                  {currentUserTier !== 'explore' && (
-                    <button
-                      onClick={handleManageBilling}
-                      className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <Settings className="w-4 h-4" />
-                      <span>Manage Billing</span>
-                    </button>
-                  )}
-                </div>
-                
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <div className="flex items-center space-x-2 mb-2">
-                      <div className={`w-3 h-3 rounded-full ${
-                        currentUserTier === 'explore' ? 'bg-gray-400' :
-                        currentUserTier === 'starter' ? 'bg-orange-500' :
-                        currentUserTier === 'professional' ? 'bg-black' : 'bg-purple-500'
-                      }`}></div>
-                      <span className="font-medium text-gray-900">
-                        {pricingTiers.find(t => t.id === currentUserTier)?.name} Plan
-                      </span>
-                    </div>
-                    {subscription.current_period_end && (
-                      <div className="flex items-center space-x-2 text-sm text-gray-600">
-                        <Calendar className="w-4 h-4" />
-                        <span>
-                          {subscription.cancel_at_period_end ? 'Ends' : 'Renews'} on{' '}
-                          {new Date(subscription.current_period_end).toLocaleDateString()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Token Usage</span>
-                      <span className="text-sm font-medium">
-                        {monthlyTokenUsage.toLocaleString()} / {tokenLimit.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
-                      <div 
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                          usagePercentage > 90 ? 'bg-red-500' :
-                          usagePercentage > 75 ? 'bg-orange-500' : 'bg-green-500'
-                        }`}
-                        style={{ width: `${Math.min(usagePercentage, 100)}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center space-x-1 text-xs text-gray-500">
-                      <TrendingUp className="w-3 h-3" />
-                      <span>{usagePercentage}% used this period</span>
-                    </div>
-                  </div>
-                </div>
-                
-                {subscription.cancel_at_period_end && (
-                  <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                    <p className="text-sm text-orange-800">
-                      <strong>Subscription Cancelled:</strong> Your plan will end on{' '}
-                      {new Date(subscription.current_period_end).toLocaleDateString()}.
-                      You can reactivate anytime before then.
-                    </p>
-                  </div>
-                )}
-              </div>
+            <div className="mt-8 max-w-4xl mx-auto">
+              {/* Current Usage Display - TierUsageCard shows accurate, up-to-date usage */}
+              <TierUsageCard />
             </div>
           )}
         </div>

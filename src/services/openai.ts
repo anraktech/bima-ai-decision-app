@@ -177,6 +177,7 @@ When referencing information from these documents, mention the document name in 
         'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({
+        provider: 'openai',
         model: model.name,
         messages: conversationMessages,
         max_tokens: Math.min(4000, model.maxTokens),

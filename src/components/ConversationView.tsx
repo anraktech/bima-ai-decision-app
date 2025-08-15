@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Pause, RotateCcw, Send, User, Bot, ChevronDown } from 'lucide-react';
+import { MessageSquare, Pause, RotateCcw, Send, User, Bot, ChevronDown, Info, RefreshCw } from 'lucide-react';
 import type { ConversationState, ConversationPanel, Message } from '../types';
 import { formatTimestamp } from '../utils';
 import { useUsageMonitor } from '../hooks/useUsageMonitor';
@@ -162,6 +162,33 @@ export const ConversationView = ({
                 <RotateCcw className="w-4 h-4" />
                 <span>Reset</span>
               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Performance Disclaimers */}
+      <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 space-y-3">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="flex items-start space-x-3">
+            <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-xs font-semibold text-blue-900">Performance Depends on Configuration</h4>
+              <p className="text-xs text-blue-700 mt-1">
+                Model performance heavily depends on your system instructions and opening message. Clear, specific instructions yield better results.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-100 border border-gray-200 rounded-lg p-3">
+          <div className="flex items-start space-x-3">
+            <RefreshCw className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-xs font-semibold text-gray-900">Model Issues or Slow Performance?</h4>
+              <p className="text-xs text-gray-700 mt-1">
+                If a model doesn't work properly or is too slow, try switching to a different model. Each AI model has different strengths and response times.
+              </p>
             </div>
           </div>
         </div>

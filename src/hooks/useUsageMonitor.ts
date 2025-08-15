@@ -2,24 +2,58 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_URL } from '../config/api';
 
+interface TierUsage {
+  ultra_premium: number;
+  premium: number;
+  standard: number;
+  free: number;
+}
+
 interface UsageData {
+  // New tier-based data
+  userPlan: string;
+  todayUsage: TierUsage;
+  remainingTokens: TierUsage;
+  planLimits: {
+    ultra_premium: number;
+    premium: number;
+    standard: number;
+    free: number;
+  };
+  
+  // Legacy compatibility
   totalTokens: number;
   totalConversations: number;
   totalCost: number;
+  historicalData: any[];
 }
 
-interface PlanLimits {
-  explore: { tokens: 50000; price: 0 };
-  starter: { tokens: 250000; price: 19 };
-  professional: { tokens: 750000; price: 49 };
-  enterprise: { tokens: 3000000; price: 199 };
-}
-
-const PLAN_LIMITS: PlanLimits = {
-  explore: { tokens: 50000, price: 0 },
-  starter: { tokens: 250000, price: 19 },
-  professional: { tokens: 750000, price: 49 },
-  enterprise: { tokens: 3000000, price: 199 }
+// UNIVERSAL PLAN LIMITS - ALL SUBSCRIPTION PLANS HAVE SAME TIER LIMITS
+const TIER_LIMITS = {
+  explore: {
+    ultra_premium: 20000,  // 🔴 Ultra Premium: 20,000 tokens/day
+    premium: 50000,        // 🟡 Premium: 50,000 tokens/day
+    standard: -1,          // 🟢 Standard: Unlimited
+    free: -1               // ⚪ Free: Unlimited
+  },
+  starter: {
+    ultra_premium: 20000,  // 🔴 Ultra Premium: 20,000 tokens/day
+    premium: 50000,        // 🟡 Premium: 50,000 tokens/day
+    standard: -1,          // 🟢 Standard: Unlimited
+    free: -1               // ⚪ Free: Unlimited
+  },
+  professional: {
+    ultra_premium: 20000,  // 🔴 Ultra Premium: 20,000 tokens/day
+    premium: 50000,        // 🟡 Premium: 50,000 tokens/day
+    standard: -1,          // 🟢 Standard: Unlimited
+    free: -1               // ⚪ Free: Unlimited
+  },
+  enterprise: {
+    ultra_premium: 20000,  // 🔴 Ultra Premium: 20,000 tokens/day
+    premium: 50000,        // 🟡 Premium: 50,000 tokens/day
+    standard: -1,          // 🟢 Standard: Unlimited
+    free: -1               // ⚪ Free: Unlimited
+  }
 };
 
 export const useUsageMonitor = () => {
@@ -41,28 +75,39 @@ export const useUsageMonitor = () => {
         
         if (response.ok) {
           const data = await response.json();
-          setUsage({
-            totalTokens: data.totalTokens || 0,
-            totalConversations: data.totalConversations || 0,
-            totalCost: data.totalCost || 0
-          });
+          setUsage(data);
 
           // Check if user has exceeded or is approaching limit
           const currentPlan = user.subscription_tier || 'explore';
-          const planLimit = PLAN_LIMITS[currentPlan as keyof PlanLimits];
+          const tierLimits = TIER_LIMITS[currentPlan as keyof typeof TIER_LIMITS];
           
-          if (planLimit && data.totalTokens > 0) {
-            const usagePercentage = (data.totalTokens / planLimit.tokens) * 100;
+          if (tierLimits && data.todayUsage) {
             const now = Date.now();
             
-            // Show modal if:
-            // 1. Usage > 100% of limit (over-limit users) - show every 2 minutes
-            // 2. Usage > 95% of limit (approaching limit) - show every 10 minutes
-            const isOverLimit = data.totalTokens > planLimit.tokens;
+            // Check if user has exceeded limits for LIMITED tiers ONLY
+            let isOverLimit = false;
+            let approachingLimit = false;
+            
+            // Check ultra_premium tier ONLY if it has limits (> 0)
+            if (tierLimits.ultra_premium > 0 && data.todayUsage.ultra_premium > tierLimits.ultra_premium) {
+              isOverLimit = true;
+            } else if (tierLimits.ultra_premium > 0 && data.todayUsage.ultra_premium > tierLimits.ultra_premium * 0.9) {
+              approachingLimit = true;
+            }
+            
+            // Check premium tier ONLY if it has limits (> 0)
+            if (tierLimits.premium > 0 && data.todayUsage.premium > tierLimits.premium) {
+              isOverLimit = true;
+            } else if (tierLimits.premium > 0 && data.todayUsage.premium > tierLimits.premium * 0.9) {
+              approachingLimit = true;
+            }
+            
+            // NEVER check standard/free tiers - they are unlimited (-1)
+            
             const cooldownTime = isOverLimit ? 2 * 60 * 1000 : 10 * 60 * 1000; // 2 min vs 10 min
             
-            // Show modal immediately on first load if over limit, or with cooldown for subsequent checks
-            if ((usagePercentage >= 95 || isOverLimit) && 
+            // Show modal if over limit or approaching limit
+            if ((isOverLimit || approachingLimit) && 
                 (!hasShownInitialModal || (now - lastCheckTime > cooldownTime))) {
               setShowLimitModal(true);
               setLastCheckTime(now);
@@ -87,20 +132,46 @@ export const useUsageMonitor = () => {
 
   const getCurrentPlanLimit = () => {
     const currentPlan = user?.subscription_tier || 'explore';
-    return PLAN_LIMITS[currentPlan as keyof PlanLimits];
+    return TIER_LIMITS[currentPlan as keyof typeof TIER_LIMITS];
   };
 
   const getUsageStatus = () => {
     if (!usage || !user) return null;
 
-    const planLimit = getCurrentPlanLimit();
-    const usagePercentage = (usage.totalTokens / planLimit.tokens) * 100;
-    const isOverLimit = usage.totalTokens > planLimit.tokens;
-    const overageAmount = isOverLimit ? usage.totalTokens - planLimit.tokens : 0;
+    const tierLimits = getCurrentPlanLimit();
+    
+    // Check if over limit for LIMITED tiers ONLY
+    let isOverLimit = false;
+    let overageAmount = 0;
+    
+    // Check ultra_premium tier ONLY if it has limits (> 0)
+    if (tierLimits.ultra_premium > 0 && usage.todayUsage.ultra_premium > tierLimits.ultra_premium) {
+      isOverLimit = true;
+      overageAmount = usage.todayUsage.ultra_premium - tierLimits.ultra_premium;
+    }
+    
+    // Check premium tier ONLY if it has limits (> 0)
+    if (tierLimits.premium > 0 && usage.todayUsage.premium > tierLimits.premium) {
+      isOverLimit = true;
+      overageAmount = Math.max(overageAmount, usage.todayUsage.premium - tierLimits.premium);
+    }
+    
+    // NEVER check standard/free tiers - they are unlimited (-1)
+    
+    // Use total tokens for legacy percentage calculation
+    const totalDailyUsage = Object.values(usage.todayUsage).reduce((sum, tokens) => sum + tokens, 0);
+    const totalDailyLimit = Object.values(tierLimits).filter(limit => limit !== -1).reduce((sum, limit) => sum + limit, 0);
+    const usagePercentage = totalDailyLimit > 0 ? (totalDailyUsage / totalDailyLimit) * 100 : 0;
 
     return {
-      currentUsage: usage.totalTokens,
-      usageLimit: planLimit.tokens,
+      // New tier-based data
+      todayUsage: usage.todayUsage,
+      remainingTokens: usage.remainingTokens,
+      tierLimits,
+      
+      // Legacy compatibility
+      currentUsage: totalDailyUsage,
+      usageLimit: totalDailyLimit,
       usagePercentage,
       isOverLimit,
       overageAmount,
@@ -110,6 +181,38 @@ export const useUsageMonitor = () => {
 
   const closeModal = () => {
     setShowLimitModal(false);
+  };
+
+  // Check if user can use a specific model
+  const canUseModel = async (modelId: string): Promise<{allowed: boolean; reason?: string; message?: string}> => {
+    if (!user || !token) {
+      return { allowed: false, reason: 'not_authenticated', message: 'Please log in to continue' };
+    }
+    
+    try {
+      const response = await fetch(`${API_URL}/api/usage/check`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ modelId, estimatedTokens: 4000 })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        return {
+          allowed: result.allowed,
+          reason: result.reason,
+          message: result.message
+        };
+      } else {
+        return { allowed: false, reason: 'check_failed', message: 'Failed to check usage limits' };
+      }
+    } catch (error) {
+      console.error('Failed to check model usage:', error);
+      return { allowed: true, reason: 'check_error', message: 'Proceeding due to check error' };
+    }
   };
 
   // Force check usage (for after conversations)
@@ -123,11 +226,7 @@ export const useUsageMonitor = () => {
       
       if (response.ok) {
         const data = await response.json();
-        setUsage({
-          totalTokens: data.totalTokens || 0,
-          totalConversations: data.totalConversations || 0,
-          totalCost: data.totalCost || 0
-        });
+        setUsage(data);
       }
     } catch (error) {
       console.error('Failed to recheck usage:', error);
@@ -140,6 +239,7 @@ export const useUsageMonitor = () => {
     closeModal,
     getUsageStatus,
     getCurrentPlanLimit,
+    canUseModel,
     recheckUsage
   };
 };

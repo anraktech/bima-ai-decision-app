@@ -11,10 +11,6 @@ import { Profile } from './pages/Profile';
 import { Community } from './pages/Community';
 import { LiveViewer } from './pages/LiveViewer';
 import { Landing } from './pages/Landing';
-import { Multiplayer } from './pages/Multiplayer';
-import { MultiplayerConversation } from './pages/MultiplayerConversation';
-import { MultiplayerArena } from './pages/MultiplayerArena';
-import { MultiplayerViewer } from './pages/MultiplayerViewer';
 import { MaxMode } from './pages/MaxMode';
 import { MaxConversation } from './pages/MaxConversation';
 import { Billing } from './pages/Billing';
@@ -141,26 +137,6 @@ function App() {
               <Route path="/profile" element={
                 <PrivateRoute>
                   <Profile />
-                </PrivateRoute>
-              } />
-              <Route path="/multiplayer" element={
-                <PrivateRoute>
-                  <Multiplayer />
-                </PrivateRoute>
-              } />
-              <Route path="/multiplayer/conversation" element={
-                <PrivateRoute>
-                  <MultiplayerConversation />
-                </PrivateRoute>
-              } />
-              <Route path="/multiplayer/arena" element={
-                <PrivateRoute>
-                  <MultiplayerArena />
-                </PrivateRoute>
-              } />
-              <Route path="/multiplayer/viewer" element={
-                <PrivateRoute>
-                  <MultiplayerViewer />
                 </PrivateRoute>
               } />
               <Route path="/max-mode" element={

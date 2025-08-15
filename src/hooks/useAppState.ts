@@ -96,7 +96,7 @@ export const useAppState = () => {
     });
   }, []);
 
-  const startConversation = useCallback((startingAgent: 'model-a' | 'model-b', initialMessage: string, multiplayerConfig?: any) => {
+  const startConversation = useCallback((startingAgent: 'model-a' | 'model-b', initialMessage: string) => {
     setState(prev => {
       const isSetupComplete = prev.panelA.model && prev.panelB.model && 
                              prev.panelA.systemInstructions && prev.panelB.systemInstructions &&
@@ -162,8 +162,6 @@ export const useAppState = () => {
           messages: [firstMessage],
           messageCount: 1,
           isActive: true,
-          multiplayerConfig,
-          isPublicViewable: multiplayerConfig?.isPublicViewable || false,
         },
         isSetupComplete: true,
       };

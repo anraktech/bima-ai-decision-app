@@ -1,57 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { UsageCard } from '../components/UsageCard';
-import { API_URL, getApiUrl, getWsUrl } from '../config/api';
 import { 
   User, 
-  Activity, 
-  CreditCard, 
   Lock, 
   HelpCircle, 
   Mail, 
   Phone, 
   MapPin,
-  ChevronRight,
-  Zap,
-  TrendingUp,
-  Calendar,
-  Bot,
-  BarChart3,
   Shield,
   LogOut,
   Key,
-  AlertCircle,
   MessageSquare,
   Globe,
-  FileText
+  FileText,
+  ChevronRight
 } from 'lucide-react';
 
-interface UsageStats {
-  totalTokens: number;
-  inputTokens: number;
-  outputTokens: number;
-  totalConversations: number;
-  totalCost: number;
-  modelUsage: {
-    model: string;
-    tokens: number;
-    conversations: number;
-    cost: number;
-  }[];
-  dailyUsage: {
-    date: string;
-    tokens: number;
-    cost: number;
-  }[];
-}
-
 export const Profile = () => {
-  const { user, logout, token } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'usage' | 'billing' | 'account' | 'support'>('usage');
-  const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'account' | 'support'>('account');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwords, setPasswords] = useState({
     current: '',
@@ -60,50 +29,6 @@ export const Profile = () => {
   });
   const [passwordError, setPasswordError] = useState('');
 
-  useEffect(() => {
-    fetchUsageStats();
-  }, []);
-
-  const fetchUsageStats = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/usage/stats`, {
-        headers: { 
-          'Authorization': `Bearer ${token}` 
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setUsageStats(data);
-      } else {
-        console.error('Failed to fetch usage stats');
-        // Use empty data as fallback
-        setUsageStats({
-          totalTokens: 0,
-          inputTokens: 0,
-          outputTokens: 0,
-          totalConversations: 0,
-          totalCost: 0,
-          modelUsage: [],
-          dailyUsage: []
-        });
-      }
-    } catch (error) {
-      console.error('Failed to fetch usage stats:', error);
-      // Use empty data as fallback
-      setUsageStats({
-        totalTokens: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        totalConversations: 0,
-        totalCost: 0,
-        modelUsage: [],
-        dailyUsage: []
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handlePasswordChange = async () => {
     if (passwords.new !== passwords.confirm) {
@@ -122,7 +47,7 @@ export const Profile = () => {
       setShowPasswordModal(false);
       setPasswords({ current: '', new: '', confirm: '' });
       setPasswordError('');
-    } catch (error) {
+    } catch {
       setPasswordError('Failed to change password');
     }
   };
@@ -133,8 +58,6 @@ export const Profile = () => {
   };
 
   const tabs = [
-    { id: 'usage', label: 'Usage & Analytics', icon: Activity },
-    { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'account', label: 'Account Settings', icon: Lock },
     { id: 'support', label: 'Support', icon: HelpCircle }
   ];
@@ -198,7 +121,7 @@ export const Profile = () => {
             <div className="sm:hidden px-4 py-3">
               <select 
                 value={activeTab} 
-                onChange={(e) => setActiveTab(e.target.value as any)}
+                onChange={(e) => setActiveTab(e.target.value as 'account' | 'support')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
               >
                 {tabs.map((tab) => (
@@ -214,7 +137,7 @@ export const Profile = () => {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
+                    onClick={() => setActiveTab(tab.id as 'account' | 'support')}
                     className={`py-4 px-1 border-b-2 font-medium text-xs sm:text-sm flex items-center space-x-1 sm:space-x-2 transition-colors whitespace-nowrap ${
                       activeTab === tab.id
                         ? 'border-orange-500 text-orange-600'
@@ -231,213 +154,7 @@ export const Profile = () => {
           </div>
 
           <div className="p-4 sm:p-6">
-            {/* Usage Tab */}
-            {activeTab === 'usage' && (
-              <div className="space-y-4 sm:space-y-6">
-                {isLoading ? (
-                  <div className="flex justify-center py-8 sm:py-12">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 border-3 border-black border-t-transparent rounded-full animate-spin"></div>
-                  </div>
-                ) : (
-                  <>
-                {/* Overview Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                  <div className="bg-gradient-to-br from-orange-50 to-white p-3 sm:p-4 rounded-lg border border-orange-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs sm:text-sm text-gray-600">Total Conversations</p>
-                        <p className="text-lg sm:text-2xl font-bold text-black">
-                          {usageStats?.totalConversations || '0'}
-                        </p>
-                      </div>
-                      <MessageSquare className="w-6 h-6 sm:w-8 sm:h-8 text-orange-500" />
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gradient-to-br from-gray-50 to-white p-3 sm:p-4 rounded-lg border border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs sm:text-sm text-gray-600">Models Used</p>
-                        <p className="text-lg sm:text-2xl font-bold text-black">
-                          {usageStats?.modelUsage.length || '0'}
-                        </p>
-                      </div>
-                      <Bot className="w-6 h-6 sm:w-8 sm:h-8 text-black" />
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gradient-to-br from-blue-50 to-white p-3 sm:p-4 rounded-lg border border-blue-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs sm:text-sm text-gray-600">Avg. Daily Usage</p>
-                        <p className="text-lg sm:text-2xl font-bold text-black">
-                          {Math.round((usageStats?.totalConversations || 0) / Math.max(usageStats?.dailyUsage.length || 1, 1))}
-                        </p>
-                      </div>
-                      <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gradient-to-br from-green-50 to-white p-3 sm:p-4 rounded-lg border border-green-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs sm:text-sm text-gray-600">Most Active Day</p>
-                        <p className="text-lg sm:text-2xl font-bold text-black">
-                          {usageStats?.dailyUsage.length ? 
-                            new Date(usageStats.dailyUsage.reduce((max, day) => 
-                              day.tokens > max.tokens ? day : max
-                            ).date).toLocaleDateString('en-US', { weekday: 'short' }) : 'N/A'}
-                        </p>
-                      </div>
-                      <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-green-600" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Most Used Models */}
-                <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
-                  <h3 className="text-base sm:text-lg font-semibold text-black mb-3 sm:mb-4">Your Favorite AI Models</h3>
-                  <div className="space-y-3">
-                    {usageStats?.modelUsage
-                      .sort((a, b) => b.conversations - a.conversations)
-                      .map((model, index) => {
-                        const percentage = ((model.conversations / (usageStats?.totalConversations || 1)) * 100);
-                        return (
-                          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
-                              <div className={`w-3 h-3 sm:w-4 sm:h-4 rounded-full flex-shrink-0 ${
-                                index === 0 ? 'bg-orange-500' : 
-                                index === 1 ? 'bg-blue-500' : 
-                                index === 2 ? 'bg-green-500' : 'bg-gray-400'
-                              }`} />
-                              <div className="min-w-0 flex-1">
-                                <p className="font-medium text-black text-sm sm:text-base truncate">{model.model}</p>
-                                <p className="text-xs sm:text-sm text-gray-500">
-                                  {model.conversations} conversations • {percentage.toFixed(1)}% of usage
-                                </p>
-                              </div>
-                            </div>
-                            <div className="text-right flex-shrink-0 ml-2">
-                              {index === 0 && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                  Most Used
-                                </span>
-                              )}
-                              {index === 1 && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                  2nd Choice
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
-                    }
-                  </div>
-                </div>
-
-                {/* Activity Pattern */}
-                <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 overflow-hidden">
-                  <h3 className="text-base sm:text-lg font-semibold text-black mb-3 sm:mb-4">Recent Activity Pattern</h3>
-                  <div className="space-y-4">
-                    {usageStats?.dailyUsage.slice(0, 7).map((day, index) => {
-                      const dayName = new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' });
-                      const maxConversations = Math.max(...(usageStats?.dailyUsage.map(d => d.tokens / 1000) || [1]));
-                      const conversations = Math.round(day.tokens / 1000) || 0; // Rough estimate
-                      return (
-                        <div key={index} className="w-full">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center space-x-2 flex-shrink-0">
-                              <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
-                              <span className="text-xs sm:text-sm text-gray-600 min-w-[32px]">{dayName}</span>
-                              <span className="text-xs sm:text-sm text-gray-500 hidden sm:block">{day.date}</span>
-                            </div>
-                            <div className="text-right flex-shrink-0 ml-2">
-                              <span className="text-xs sm:text-sm font-medium text-black">
-                                {conversations} chats
-                              </span>
-                            </div>
-                          </div>
-                          <div className="w-full">
-                            <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
-                              <div 
-                                className={`rounded-full h-2 transition-all duration-300 ${
-                                  conversations > maxConversations * 0.8 ? 'bg-orange-500' :
-                                  conversations > maxConversations * 0.5 ? 'bg-blue-500' :
-                                  conversations > 0 ? 'bg-green-500' : 'bg-gray-300'
-                                }`}
-                                style={{ 
-                                  width: `${Math.max((conversations / maxConversations) * 100, 2)}%` 
-                                }}
-                              />
-                            </div>
-                            <div className="mt-1">
-                              <span className="text-xs text-gray-500">
-                                {conversations === 0 ? 'Rest day' : 
-                                 conversations >= maxConversations * 0.8 ? 'Very active' :
-                                 conversations >= maxConversations * 0.5 ? 'Active' : 'Light usage'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                      <div>
-                        <p className="text-xs sm:text-sm font-medium text-orange-600">Most Active</p>
-                        <p className="text-xs text-gray-500">High usage days</p>
-                      </div>
-                      <div>
-                        <p className="text-xs sm:text-sm font-medium text-blue-600">Moderate</p>
-                        <p className="text-xs text-gray-500">Regular usage</p>
-                      </div>
-                      <div>
-                        <p className="text-xs sm:text-sm font-medium text-green-600">Light</p>
-                        <p className="text-xs text-gray-500">Occasional use</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Billing Tab */}
-            {activeTab === 'billing' && (
-              <div className="space-y-4 sm:space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                  <div className="lg:col-span-1">
-                    <UsageCard />
-                  </div>
-                  
-                  <div className="lg:col-span-1 space-y-4 sm:space-y-6">
-                    <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
-                      <h3 className="text-base sm:text-lg font-semibold text-black mb-3 sm:mb-4">Quick Actions</h3>
-                      <div className="space-y-3">
-                        <button 
-                          onClick={() => navigate('/billing')}
-                          className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 sm:py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm sm:text-base"
-                        >
-                          <span>View All Plans</span>
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => navigate('/billing')}
-                          className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 sm:py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm sm:text-base"
-                        >
-                          <CreditCard className="w-4 h-4" />
-                          <span>Upgrade Plan</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Removed Usage & Billing tabs - available on dedicated Billing page */}
 
             {/* Account Settings Tab */}
             {activeTab === 'account' && (

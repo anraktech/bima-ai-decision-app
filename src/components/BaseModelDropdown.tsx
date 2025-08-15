@@ -16,14 +16,52 @@ interface BaseModelDropdownProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-// Provider color mapping for consistent branding
-const providerColors = {
-  openai: { bg: 'bg-emerald-100', text: 'text-emerald-600', dot: 'bg-emerald-500' },
-  anthropic: { bg: 'bg-blue-100', text: 'text-blue-600', dot: 'bg-blue-500' },
-  google: { bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-500' },
-  groq: { bg: 'bg-orange-100', text: 'text-orange-600', dot: 'bg-orange-500' },
-  xai: { bg: 'bg-indigo-100', text: 'text-indigo-600', dot: 'bg-indigo-500' },
-  deepseek: { bg: 'bg-purple-100', text: 'text-purple-600', dot: 'bg-purple-500' }
+// Model tier classification for pricing tiers
+const getModelTier = (model: AIModel): 'ultra_premium' | 'premium' | 'standard' | 'free' => {
+  if (!model.id) return 'standard';
+  
+  // Ultra Premium models ($10+ per 1M output tokens)
+  const ultraPremiumModels = [
+    'openai/gpt-5', 'openai/gpt-5-chat', 'openai/gpt-5-mini', 'openai/gpt-5-nano',
+    'anthropic/claude-opus-4.1', 'anthropic/claude-opus-4', 'anthropic/claude-sonnet-4',
+    'openai/o3-pro', 'openai/o3', 'x-ai/grok-4', 'nvidia/llama-3.1-nemotron-ultra-253b-v1'
+  ];
+  
+  // Premium models ($2-10 per 1M output tokens)
+  const premiumModels = [
+    'openai/gpt-4.1', 'openai/gpt-4.1-mini', 'openai/gpt-4o', 'openai/o1-pro', 'openai/o1',
+    'anthropic/claude-3.7-sonnet', 'anthropic/claude-3.5-sonnet', 'anthropic/claude-3-opus',
+    'google/gemini-2.5-pro', 'google/gemini-2.5-flash', 'google/gemini-pro-1.5',
+    'x-ai/grok-3', 'x-ai/grok-3-mini', 'x-ai/grok-2-1212',
+    'deepseek/deepseek-r1', 'deepseek/deepseek-chat', 'meta-llama/llama-4-maverick',
+    'mistralai/mistral-medium-3.1', 'mistralai/codestral-2501', 'qwen/qwen3-235b-a22b-2507'
+  ];
+  
+  // Free models
+  const freeModels = model.id.includes(':free') || [
+    'openai/gpt-oss-20b:free', 'z-ai/glm-4.5-air:free', 'qwen/qwen3-coder:free',
+    'meta-llama/llama-3.3-70b-instruct:free', 'mistralai/mistral-7b-instruct:free'
+  ].some(freeId => model.id.includes(freeId.split(':')[0]));
+  
+  if (ultraPremiumModels.some(id => model.id.includes(id))) return 'ultra_premium';
+  if (premiumModels.some(id => model.id.includes(id))) return 'premium';
+  if (freeModels) return 'free';
+  return 'standard';
+};
+
+// Professional tier color mapping with usage indicators
+const tierColors = {
+  ultra_premium: { bg: 'bg-slate-100', text: 'text-slate-700', dot: 'bg-slate-600', badge: '◆' },
+  premium: { bg: 'bg-indigo-50', text: 'text-indigo-700', dot: 'bg-indigo-600', badge: '◇' },
+  standard: { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-600', badge: '○' },
+  free: { bg: 'bg-gray-50', text: 'text-gray-600', dot: 'bg-gray-400', badge: '◦' }
+} as const;
+
+const tierLabels = {
+  ultra_premium: 'ULTRA PREMIUM (20k/day)',
+  premium: 'PREMIUM (50k/day)', 
+  standard: 'STANDARD (Unlimited)',
+  free: 'FREE (Unlimited)'
 } as const;
 
 const getModelStatusIcon = (model: AIModel) => {
@@ -48,9 +86,9 @@ const getModelStatusIcon = (model: AIModel) => {
     );
   }
   
-  // API-provided models are live
-  const provider = model.provider || 'openai';
-  const colors = providerColors[provider as keyof typeof providerColors] || providerColors.openai;
+  // API-provided models are live - use tier colors
+  const tier = getModelTier(model);
+  const colors = tierColors[tier];
   
   return (
     <div className={`flex items-center space-x-1 ${colors.text}`}>
@@ -215,7 +253,7 @@ export const BaseModelDropdown = ({
                     ? 'bg-purple-500'
                     : selectedModel.isShared || selectedModel.id.startsWith('shared-')
                     ? 'bg-orange-500'
-                    : providerColors[selectedModel.provider as keyof typeof providerColors]?.dot || 'bg-blue-500'
+                    : tierColors[getModelTier(selectedModel)]?.dot || 'bg-blue-500'
                 }`}></div>
                 <div className="flex flex-col flex-1 min-w-0">
                   <span className="text-gray-900 font-medium truncate">
@@ -272,69 +310,87 @@ export const BaseModelDropdown = ({
               <div className="px-4 py-8 text-gray-500 text-center text-sm">Loading models...</div>
             ) : (
               <>
-                {/* API Providers */}
-                {providers.map((provider) => {
-                  const filteredModels = filterModels(provider.models, searchTerm);
-                  if (searchTerm && filteredModels.length === 0) return null;
+                {/* Group all models by tier */}
+                {(() => {
+                  // Collect all models from all providers
+                  const allModels = providers.flatMap(provider => provider.models);
                   
-                  return (
-                    <div key={provider.id} className="border-b border-gray-100 last:border-b-0">
-                      {/* Provider Header */}
-                      <button
-                        onClick={() => toggleProvider(provider.id)}
-                        className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <span className="text-lg">{getProviderIcon(provider.id)}</span>
-                          <span className="text-sm font-semibold text-gray-700">
-                            {provider.name}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            ({filteredModels.length} model{filteredModels.length !== 1 ? 's' : ''})
-                          </span>
-                        </div>
-                        <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform duration-200 ${
-                          expandedProviders.has(provider.id) ? 'rotate-180' : ''
-                        }`} />
-                      </button>
-                      
-                      {/* Provider Models */}
-                      {expandedProviders.has(provider.id) && (
-                        <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-                          {filteredModels.map((model: any) => (
-                            <button
-                              key={model.id}
-                              onClick={() => handleModelSelect(model)}
-                              className="w-full px-6 py-3 text-left hover:bg-gray-50 transition-colors duration-150 border-l-2 border-gray-200 group"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3 flex-1 min-w-0">
-                                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                                    providerColors[provider.id as keyof typeof providerColors]?.dot || 'bg-blue-500'
-                                  }`}></div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-gray-900 text-sm truncate">{model.name}</p>
-                                    <div className="flex items-center space-x-2 mt-0.5">
-                                      {getModelStatusIcon(model)}
-                                      {model.context && (
-                                        <span className="text-xs text-gray-500">
-                                          {model.context.toLocaleString()} tokens
-                                        </span>
-                                      )}
+                  // Group models by tier
+                  const modelsByTier = {
+                    ultra_premium: allModels.filter(model => getModelTier(model) === 'ultra_premium'),
+                    premium: allModels.filter(model => getModelTier(model) === 'premium'),
+                    standard: allModels.filter(model => getModelTier(model) === 'standard'),
+                    free: allModels.filter(model => getModelTier(model) === 'free')
+                  };
+                  
+                  return Object.entries(modelsByTier).map(([tier, models]) => {
+                    const filteredModels = filterModels(models, searchTerm);
+                    if (searchTerm && filteredModels.length === 0) return null;
+                    if (filteredModels.length === 0) return null;
+                    
+                    const tierKey = tier as keyof typeof tierColors;
+                    
+                    return (
+                      <div key={tier} className="border-b border-gray-100 last:border-b-0">
+                        {/* Tier Header */}
+                        <button
+                          onClick={() => toggleProvider(tier)}
+                          className={`w-full px-4 py-3 transition-colors flex items-center justify-between ${
+                            tierColors[tierKey].bg
+                          } hover:opacity-80`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <span className="text-lg">{tierColors[tierKey].badge}</span>
+                            <span className={`text-sm font-semibold ${tierColors[tierKey].text}`}>
+                              {tierLabels[tierKey]}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              ({filteredModels.length} model{filteredModels.length !== 1 ? 's' : ''})
+                            </span>
+                          </div>
+                          <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform duration-200 ${
+                            expandedProviders.has(tier) ? 'rotate-180' : ''
+                          }`} />
+                        </button>
+                        
+                        {/* Tier Models */}
+                        {expandedProviders.has(tier) && (
+                          <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                            {filteredModels.map((model: any) => (
+                              <button
+                                key={model.id}
+                                onClick={() => handleModelSelect(model)}
+                                className="w-full px-6 py-3 text-left hover:bg-gray-50 transition-colors duration-150 border-l-2 border-gray-200 group"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                      tierColors[tierKey]?.dot || 'bg-blue-500'
+                                    }`}></div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-medium text-gray-900 text-sm truncate">{model.name}</p>
+                                      <div className="flex items-center space-x-2 mt-0.5">
+                                        {getModelStatusIcon(model)}
+                                        {model.context && (
+                                          <span className="text-xs text-gray-500">
+                                            {model.context.toLocaleString()} tokens
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
+                                  {selectedModel?.id === model.id && (
+                                    <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                  )}
                                 </div>
-                                {selectedModel?.id === model.id && (
-                                  <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                                )}
-                              </div>
                             </button>
                           ))}
                         </div>
                       )}
                     </div>
                   );
-                })}
+                  });
+                })()}
                 
                 {/* Custom Models */}
                 {customModels.length > 0 && (
@@ -421,4 +477,4 @@ export const BaseModelDropdown = ({
       )}
     </div>
   );
-};
+};// Force rebuild Fri 15 Aug 2025 16:19:44 WAT

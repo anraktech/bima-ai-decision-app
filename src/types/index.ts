@@ -39,17 +39,6 @@ export interface ConversationState {
   isWaitingForIntervention: boolean;
   interventionCount: number;
   nextResponder?: 'model-a' | 'model-b';
-  multiplayerConfig?: {
-    currentUserRole: 'primary' | 'alternative';
-    collaborativeUser: {
-      email: string;
-      role: 'primary' | 'alternative';
-    };
-    interventionMode: 'host-only' | 'both-users';
-    isPublicViewable: boolean;
-    liveToken?: string;
-  };
-  isPublicViewable?: boolean;
 }
 
 export interface AppState {

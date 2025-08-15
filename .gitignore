@@ -22,8 +22,10 @@ build/
 *.sqlite3
 server/database.db
 
-# Uploaded files
-server/uploads/
+# Uploaded files  
+server/uploads/*.docx
+server/uploads/*.pdf
+server/uploads/*.rtf
 uploads/
 
 # System files
@@ -77,3 +79,12 @@ coverage/
 # DynamoDB Local files
 .dynamodb/
 .vercel
+
+# Documentation and setup files
+docs/
+*.md~
+debug-*.js
+test-*.html
+simple-*.js
+migrate-*.js
+dist/

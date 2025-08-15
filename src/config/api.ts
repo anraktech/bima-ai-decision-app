@@ -1,5 +1,5 @@
 // API Configuration
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+export const API_URL = import.meta.env.VITE_API_URL || 'https://bima-ai-decision-app-production.up.railway.app';
 
 export const getApiUrl = (endpoint: string) => {
   return `${API_URL}${endpoint}`;

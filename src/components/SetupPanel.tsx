@@ -6,13 +6,13 @@ import { BaseModelDropdown } from './BaseModelDropdown';
 import { ProfessionalPersonaDropdown } from './ProfessionalPersonaDropdown';
 import type { ProfessionalPersona } from '../data/professionalPersonas';
 import { ImportModelModal } from './ImportModelModal';
-import { MultiplayerSetupModal, type MultiplayerConfig } from './MultiplayerSetupModal';
 import { WatchLiveModal } from './WatchLiveModal';
 import { LiveTokenModal } from './LiveTokenModal';
 import { UsageLimitModal } from './UsageLimitModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useLiveSession } from '../hooks/useLiveSession';
 import { useUsageMonitor } from '../hooks/useUsageMonitor';
+import { getModelTier } from '../config/usage-tiers';
 
 interface SetupPanelProps {
   panelA: ConversationPanel;
@@ -20,8 +20,7 @@ interface SetupPanelProps {
   onModelChange: (panelId: 'model-a' | 'model-b', model: AIModel) => void;
   onSystemInstructionsChange: (panelId: 'model-a' | 'model-b', instructions: string) => void;
   onInitialMessageChange: (panelId: 'model-a' | 'model-b', message: string) => void;
-  onStartConversation: (startingAgent: 'model-a' | 'model-b', initialMessage: string, multiplayerConfig?: MultiplayerConfig) => void;
-  isMultiplayerMode?: boolean;
+  onStartConversation: (startingAgent: 'model-a' | 'model-b', initialMessage: string) => void;
 }
 
 
@@ -43,17 +42,14 @@ export const SetupPanel = memo(({
   onSystemInstructionsChange,
   onInitialMessageChange,
   onStartConversation,
-  isMultiplayerMode = false,
 }: SetupPanelProps) => {
   const [startingAgent, setStartingAgent] = useState<'model-a' | 'model-b'>('model-a');
   const [initialMessage, setInitialMessage] = useState('');
   const [selectedPersonaA, setSelectedPersonaA] = useState<ProfessionalPersona | null>(null);
   const [selectedPersonaB, setSelectedPersonaB] = useState<ProfessionalPersona | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showMultiplayerSetup, setShowMultiplayerSetup] = useState(false);
   const [showWatchLiveModal, setShowWatchLiveModal] = useState(false);
   const [showLiveTokenModal, setShowLiveTokenModal] = useState(false);
-  const [multiplayerConfig, setMultiplayerConfig] = useState<MultiplayerConfig | null>(null);
   const [pendingConversationStart, setPendingConversationStart] = useState<{agent: 'model-a' | 'model-b', message: string} | null>(null);
   const [liveToken, setLiveToken] = useState<string | null>(null);
   const [importedModels, setImportedModels] = useState<AIModel[]>([]);
@@ -124,7 +120,27 @@ export const SetupPanel = memo(({
   }, [onSystemInstructionsChange]);
 
   const usageStatus = getUsageStatus();
-  const isOverLimit = usageStatus?.isOverLimit || false;
+  
+  // Check if user is over limit for the SPECIFIC models they want to use
+  const isOverLimitForSelectedModels = () => {
+    if (!usageStatus) return false;
+    
+    // Get tiers of selected models
+    const modelATier = panelA.model ? getModelTier(panelA.model.id) : null;
+    const modelBTier = panelB.model ? getModelTier(panelB.model.id) : null;
+    
+    // If both models are standard or free tier, NEVER block (unlimited)
+    if (modelATier && modelBTier && 
+        (modelATier === 'standard' || modelATier === 'free') && 
+        (modelBTier === 'standard' || modelBTier === 'free')) {
+      return false;
+    }
+    
+    // If user is over general limit AND using premium/ultra_premium models, block
+    return usageStatus.isOverLimit;
+  };
+  
+  const isOverLimit = isOverLimitForSelectedModels();
   
   const isSetupValid = Boolean(
     panelA.model && 
@@ -155,30 +171,6 @@ export const SetupPanel = memo(({
             They'll engage in advanced cognitive discourse to unlock superhuman insights and breakthrough decision-making capabilities.
           </p>
           
-          {/* Import Model Link & Watch Live - Only show in multiplayer mode */}
-          {isMultiplayerMode && (
-            <div className="mt-6 pt-4 border-t border-gray-200 space-y-3">
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="inline-flex items-center space-x-2 text-sm text-orange-600 hover:text-orange-700 font-medium transition-colors group"
-              >
-                <Share2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span>Import community model</span>
-                <span className="text-xs text-gray-400">•</span>
-                <span className="text-xs text-gray-500">Use shared models from other users</span>
-              </button>
-              
-              <button
-                onClick={() => setShowWatchLiveModal(true)}
-                className="inline-flex items-center space-x-2 text-sm text-orange-600 hover:text-orange-700 font-medium transition-colors group"
-              >
-                <Radio className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                <span>Watch Live</span>
-                <span className="text-xs text-gray-400">•</span>
-                <span className="text-xs text-gray-500">Join ongoing conversations with a live token</span>
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -392,11 +384,7 @@ export const SetupPanel = memo(({
               return;
             }
             
-            if (isMultiplayerMode) {
-              setShowMultiplayerSetup(true);
-            } else {
-              onStartConversation(startingAgent, initialMessage);
-            }
+            onStartConversation(startingAgent, initialMessage);
           }}
           disabled={!isSetupValid}
           className={`inline-flex items-center justify-center px-6 py-2.5 ${
@@ -404,7 +392,7 @@ export const SetupPanel = memo(({
           } text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 disabled:hover:scale-100 space-x-2 shadow-sm`}
         >
           <Play className="w-4 h-4" />
-          <span>{isOverLimit ? 'Upgrade Required' : isMultiplayerMode ? 'Setup Multiplayer' : 'Start Conversation'}</span>
+          <span>{isOverLimit ? 'Upgrade Required' : 'Start Conversation'}</span>
         </button>
       </div>
 
@@ -601,27 +589,6 @@ export const SetupPanel = memo(({
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
         onImport={handleImportModel}
-      />
-      
-      {/* Multiplayer Setup Modal */}
-      <MultiplayerSetupModal
-        isOpen={showMultiplayerSetup}
-        onClose={() => setShowMultiplayerSetup(false)}
-        onConfirm={(config) => {
-          setMultiplayerConfig(config);
-          setShowMultiplayerSetup(false);
-          setPendingConversationStart({ agent: startingAgent, message: initialMessage });
-          
-          // Always start the conversation with the config
-          onStartConversation(startingAgent, initialMessage, config);
-          
-          // Generate and show token for live session if public viewing is enabled
-          if (config.isPublicViewable) {
-            const token = generateShareToken();
-            setLiveToken(token);
-            setShowLiveTokenModal(true);
-          }
-        }}
       />
       
       {/* Watch Live Modal */}
