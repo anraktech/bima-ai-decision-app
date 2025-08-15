@@ -537,6 +537,26 @@ once
             </div>
           </div>
         </div>
+
+        {/* Plan Update Disclaimer */}
+        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                <span className="text-blue-600 text-sm font-bold">!</span>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">Plan Update Notice</h3>
+              <p className="text-sm text-blue-800 mb-2">
+                After payment, your plan should update automatically. However, if your plan status doesn't update within 1 hour, please contact us and we'll manually activate your subscription immediately.
+              </p>
+              <p className="text-sm text-blue-700">
+                <strong>Contact:</strong> <a href="mailto:kapil@anrak.io?subject=Manual Plan Update Request" className="text-blue-600 hover:text-blue-700 underline">kapil@anrak.io</a>
+              </p>
+            </div>
+          </div>
+        </div>
         
         {/* Cancellation Notice */}
         <div className="mt-12 bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
