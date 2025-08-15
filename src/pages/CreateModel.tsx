@@ -130,7 +130,7 @@ export const CreateModel = () => {
 
         if (!documentResponse.ok) {
           const errorData = await documentResponse.json().catch(() => ({ error: 'Failed to upload documents' }));
-          throw new Error(`Document upload failed: ${errorData.error || 'Unknown error'}`);
+          throw new Error(`Document upload failed: ${errorData.error || 'Unknown error'}${errorData.details ? ` - ${errorData.details}` : ''}`);
         }
 
         const uploadResult = await documentResponse.json();

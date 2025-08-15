@@ -1338,8 +1338,13 @@ const upload = multer({
 
 // Upload documents to model
 app.post('/api/models/:id/documents', authenticateToken, upload.array('documents', 3), async (req, res) => {
-  console.log(`Document upload request for model ${req.params.id} by user ${req.user.id}`);
-  console.log(`Files received:`, req.files?.length || 0);
+  console.log(`🔄 Document upload request for model ${req.params.id} by user ${req.user.id}`);
+  console.log(`📁 Files received:`, req.files?.length || 0);
+  if (req.files && req.files.length > 0) {
+    req.files.forEach((file, index) => {
+      console.log(`📄 File ${index + 1}: ${file.originalname} (${file.mimetype}, ${file.size} bytes)`);
+    });
+  }
   
   try {
     // Check model ownership
@@ -1349,38 +1354,52 @@ app.post('/api/models/:id/documents', authenticateToken, upload.array('documents
     );
     
     if (modelResult.rows.length === 0) {
-      console.error(`Model ${req.params.id} not found for user ${req.user.id}`);
+      console.error(`❌ Model ${req.params.id} not found for user ${req.user.id}`);
       return res.status(404).json({ error: 'Model not found' });
     }
     
+    console.log(`✅ Model found: ${modelResult.rows[0].id}`);
+    
     if (!req.files || req.files.length === 0) {
-      console.error('No files uploaded in request');
+      console.error('❌ No files uploaded in request');
       return res.status(400).json({ error: 'No files uploaded' });
     }
     
+    console.log(`✅ Starting file processing for ${req.files.length} files`);
     const uploadedDocs = [];
     
     for (const file of req.files) {
+      console.log(`🔄 Processing file: ${file.originalname} (${file.mimetype})`);
       let content = '';
       
       try {
         // Extract text content based on file type
         if (file.mimetype === 'text/plain' || file.mimetype === 'text/csv' || file.mimetype === 'application/json') {
+          console.log(`📝 Processing as text file`);
           content = file.buffer.toString('utf-8');
         } else if (file.mimetype === 'application/pdf') {
+          console.log(`📄 Processing as PDF file`);
           // Parse PDF content (dynamic import to avoid loading issues)
           try {
             const pdfParse = (await import('pdf-parse')).default;
             const pdfData = await pdfParse(file.buffer);
             content = pdfData.text;
+            console.log(`✅ PDF parsed successfully, ${content.length} characters extracted`);
           } catch (pdfError) {
-            console.error('PDF parsing error:', pdfError);
+            console.error('❌ PDF parsing error:', pdfError);
             content = `[PDF parsing failed: ${pdfError.message}]`;
           }
         } else if (file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+          console.log(`📄 Processing as DOCX file`);
           // Parse DOCX content
-          const result = await mammoth.extractRawText({ buffer: file.buffer });
-          content = result.value;
+          try {
+            const result = await mammoth.extractRawText({ buffer: file.buffer });
+            content = result.value;
+            console.log(`✅ DOCX parsed successfully, ${content.length} characters extracted`);
+          } catch (docxError) {
+            console.error('❌ DOCX parsing error:', docxError);
+            content = `[DOCX parsing failed: ${docxError.message}]`;
+          }
         } else if (file.mimetype === 'application/rtf' || file.mimetype === 'text/rtf') {
           // Parse RTF content (dynamic import to avoid loading issues)
           try {
@@ -1405,6 +1424,7 @@ app.post('/api/models/:id/documents', authenticateToken, upload.array('documents
       }
       
       // Save document to database
+      console.log(`💾 Saving document to database: ${file.originalname}`);
       const result = await pool.query(`
         INSERT INTO documents (user_id, model_id, original_name, filename, file_type, file_size, content)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -1419,13 +1439,16 @@ app.post('/api/models/:id/documents', authenticateToken, upload.array('documents
         content
       ]);
       
+      console.log(`✅ Document saved with ID: ${result.rows[0].id}`);
       uploadedDocs.push(result.rows[0]);
     }
     
     // Auto-append document content to model's system instructions
     if (uploadedDocs.length > 0) {
+      console.log(`🔄 Updating system instructions with ${uploadedDocs.length} documents`);
       // Use the model we already fetched
       const currentInstructions = modelResult.rows[0].system_prompt || '';
+      console.log(`📝 Current instructions length: ${currentInstructions.length} characters`);
       
       // Prepare document content to append
       const documentSections = uploadedDocs.map(doc => {
@@ -1436,6 +1459,8 @@ app.post('/api/models/:id/documents', authenticateToken, upload.array('documents
         (currentInstructions ? '\n\n' : '') + 
         '--- Knowledge Base Documents ---' + 
         documentSections;
+      
+      console.log(`📝 Updated instructions length: ${updatedInstructions.length} characters`);
       
       // Update model with new system instructions
       const updateResult = await pool.query(
@@ -1459,10 +1484,14 @@ app.post('/api/models/:id/documents', authenticateToken, upload.array('documents
       message: `Successfully uploaded ${uploadedDocs.length} document${uploadedDocs.length > 1 ? 's' : ''}`
     });
   } catch (error) {
-    console.error('Error uploading documents:', error);
+    console.error('❌ Error uploading documents:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
     res.status(500).json({ 
       error: 'Failed to upload documents',
-      details: error.message 
+      details: error.message,
+      errorType: error.name
     });
   }
 });
