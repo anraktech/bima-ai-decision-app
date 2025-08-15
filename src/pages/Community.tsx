@@ -319,7 +319,7 @@ export function Community() {
                 {/* Tags and Actions */}
                 <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                   <div className="flex flex-wrap gap-2">
-                    {post.tags.map((tag, index) => (
+                    {(Array.isArray(post.tags) ? post.tags : []).map((tag, index) => (
                       <span
                         key={index}
                         className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-medium rounded-full"

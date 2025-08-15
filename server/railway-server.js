@@ -1580,7 +1580,14 @@ app.get('/api/community/posts', async (req, res) => {
       FROM community_posts 
       ORDER BY ${orderBy}
     `);
-    res.json(result.rows);
+    
+    // Convert PostgreSQL array format to JavaScript arrays
+    const posts = result.rows.map(post => ({
+      ...post,
+      tags: post.tags ? (post.tags.replace(/[{}]/g, '').split(',').filter(t => t.trim())) : []
+    }));
+    
+    res.json(posts);
   } catch (error) {
     console.error('Error fetching community posts:', error);
     res.status(500).json({ error: 'Failed to fetch community posts', details: error.message });
