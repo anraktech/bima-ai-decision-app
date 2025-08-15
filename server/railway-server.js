@@ -1274,8 +1274,9 @@ app.post('/api/models/import', authenticateToken, async (req, res) => {
     try {
       await pool.query(`
         UPDATE community_posts 
-        SET import_count = import_count + 1 
-        WHERE modelToken = $1
+        SET import_count = COALESCE(import_count, 0) + 1,
+            downloads = COALESCE(downloads, 0) + 1
+        WHERE model_data = $1
       `, [shareToken]);
     } catch (err) {
       // Ignore if no community post exists
@@ -1569,15 +1570,19 @@ app.get('/api/community/posts', async (req, res) => {
     }
     
     const result = await pool.query(`
-      SELECT id, username, title, description, modelToken as model_token, tags, 
-             likes, views, import_count, created_at as timestamp 
+      SELECT id, username, title, description, 
+             COALESCE(model_data, '') as model_token, 
+             tags, likes, 
+             COALESCE(downloads, 0) as views, 
+             COALESCE(import_count, 0) as import_count, 
+             created_at as timestamp 
       FROM community_posts 
       ORDER BY ${orderBy}
     `);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching community posts:', error);
-    res.status(500).json({ error: 'Failed to fetch community posts' });
+    res.status(500).json({ error: 'Failed to fetch community posts', details: error.message });
   }
 });
 
@@ -1603,10 +1608,10 @@ app.post('/api/community/posts', authenticateToken, async (req, res) => {
     const username = user.name || user.email.split('@')[0];
 
     const result = await pool.query(`
-      INSERT INTO community_posts (user_id, username, title, description, modelToken, tags)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, username, title, description, modelToken as model_token, tags, likes, views, 
-               import_count, created_at as timestamp
+      INSERT INTO community_posts (user_id, username, title, description, model_data, tags, likes, downloads, import_count)
+      VALUES ($1, $2, $3, $4, $5, $6, 0, 0, 0)
+      RETURNING id, username, title, description, model_data as model_token, tags, likes, 
+               downloads as views, import_count, created_at as timestamp
     `, [req.user.id, username, title, description, modelToken.toUpperCase(), tags || []]);
 
     res.status(201).json(result.rows[0]);
