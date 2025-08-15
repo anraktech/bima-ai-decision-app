@@ -3401,13 +3401,12 @@ app.post('/api/admin/update-subscription', (req, res) => {
 });
 
 // Admin endpoint to get all users
-app.get('/api/admin/users', authenticateToken, (req, res) => {
-  // Check if user is admin
-  const adminEmail = 'kapil@anrak.io';
+app.get('/api/admin/users', (req, res) => {
+  // Simplified admin check - just use the admin key for now
   const adminKey = req.headers['x-admin-key'];
   
-  if (req.user.email !== adminEmail || adminKey !== 'anrak-admin-2025') {
-    return res.status(403).json({ error: 'Unauthorized' });
+  if (adminKey !== 'anrak-admin-2025') {
+    return res.status(403).json({ error: 'Unauthorized - invalid admin key' });
   }
   
   try {
@@ -3422,6 +3421,7 @@ app.get('/api/admin/users', authenticateToken, (req, res) => {
       ORDER BY created_at DESC
     `).all();
     
+    console.log(`Admin API: Returning ${users.length} users`);
     res.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -3430,13 +3430,12 @@ app.get('/api/admin/users', authenticateToken, (req, res) => {
 });
 
 // Admin endpoint to update user plan
-app.post('/api/admin/update-user-plan', authenticateToken, (req, res) => {
-  // Check if user is admin
-  const adminEmail = 'kapil@anrak.io';
+app.post('/api/admin/update-user-plan', (req, res) => {
+  // Simplified admin check - just use the admin key for now
   const adminKey = req.headers['x-admin-key'];
   
-  if (req.user.email !== adminEmail || adminKey !== 'anrak-admin-2025') {
-    return res.status(403).json({ error: 'Unauthorized' });
+  if (adminKey !== 'anrak-admin-2025') {
+    return res.status(403).json({ error: 'Unauthorized - invalid admin key' });
   }
   
   const { userId, plan } = req.body;
