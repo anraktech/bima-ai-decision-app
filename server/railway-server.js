@@ -1322,6 +1322,8 @@ const upload = multer({
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/rtf',
+      'text/rtf',
       'text/csv',
       'application/json'
     ];
@@ -1336,18 +1338,23 @@ const upload = multer({
 
 // Upload documents to model
 app.post('/api/models/:id/documents', authenticateToken, upload.array('documents', 3), async (req, res) => {
+  console.log(`Document upload request for model ${req.params.id} by user ${req.user.id}`);
+  console.log(`Files received:`, req.files?.length || 0);
+  
   try {
     // Check model ownership
     const modelResult = await pool.query(
-      'SELECT id FROM models WHERE id = $1 AND user_id = $2',
+      'SELECT id, system_prompt FROM models WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user.id]
     );
     
     if (modelResult.rows.length === 0) {
+      console.error(`Model ${req.params.id} not found for user ${req.user.id}`);
       return res.status(404).json({ error: 'Model not found' });
     }
     
     if (!req.files || req.files.length === 0) {
+      console.error('No files uploaded in request');
       return res.status(400).json({ error: 'No files uploaded' });
     }
     
@@ -1417,33 +1424,27 @@ app.post('/api/models/:id/documents', authenticateToken, upload.array('documents
     
     // Auto-append document content to model's system instructions
     if (uploadedDocs.length > 0) {
-      // Get current model system instructions
-      const modelQuery = await pool.query(
-        'SELECT system_prompt FROM models WHERE id = $1 AND user_id = $2',
-        [req.params.id, req.user.id]
+      // Use the model we already fetched
+      const currentInstructions = modelResult.rows[0].system_prompt || '';
+      
+      // Prepare document content to append
+      const documentSections = uploadedDocs.map(doc => {
+        return `\n\n--- Document: ${doc.original_name} ---\n${doc.content}`;
+      }).join('');
+      
+      const updatedInstructions = currentInstructions + 
+        (currentInstructions ? '\n\n' : '') + 
+        '--- Knowledge Base Documents ---' + 
+        documentSections;
+      
+      // Update model with new system instructions
+      const updateResult = await pool.query(
+        'UPDATE models SET system_prompt = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND user_id = $3 RETURNING system_prompt',
+        [updatedInstructions, req.params.id, req.user.id]
       );
       
-      if (modelQuery.rows.length > 0) {
-        const currentInstructions = modelQuery.rows[0].system_prompt || '';
-        
-        // Prepare document content to append
-        const documentSections = uploadedDocs.map(doc => {
-          return `\n\n--- Document: ${doc.original_name} ---\n${doc.content}`;
-        }).join('');
-        
-        const updatedInstructions = currentInstructions + 
-          (currentInstructions ? '\n\n' : '') + 
-          '--- Uploaded Documents ---' + 
-          documentSections;
-        
-        // Update model with new system instructions
-        await pool.query(
-          'UPDATE models SET system_prompt = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND user_id = $3',
-          [updatedInstructions, req.params.id, req.user.id]
-        );
-        
-        console.log(`✅ Auto-appended ${uploadedDocs.length} document(s) to model ${req.params.id} system instructions`);
-      }
+      console.log(`✅ Auto-appended ${uploadedDocs.length} document(s) to model ${req.params.id}`);
+      console.log(`New system_prompt length: ${updateResult.rows[0].system_prompt.length} characters`);
     }
     
     res.status(201).json({
@@ -1607,12 +1608,16 @@ app.post('/api/community/posts', authenticateToken, async (req, res) => {
     const user = userResult.rows[0];
     const username = user.name || user.email.split('@')[0];
 
+    // Convert tags to PostgreSQL array format
+    const tagsArray = Array.isArray(tags) ? tags : (tags ? tags.split(',').map(t => t.trim()) : []);
+    const tagsString = tagsArray.length > 0 ? `{${tagsArray.join(',')}}` : null;
+    
     const result = await pool.query(`
       INSERT INTO community_posts (user_id, username, title, description, model_data, tags, likes, downloads, import_count)
       VALUES ($1, $2, $3, $4, $5, $6, 0, 0, 0)
       RETURNING id, username, title, description, model_data as model_token, tags, likes, 
                downloads as views, import_count, created_at as timestamp
-    `, [req.user.id, username, title, description, modelToken.toUpperCase(), tags || []]);
+    `, [req.user.id, username, title, description, modelToken.toUpperCase(), tagsString]);
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
