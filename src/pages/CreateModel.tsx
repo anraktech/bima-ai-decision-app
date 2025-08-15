@@ -22,7 +22,6 @@ export const CreateModel = () => {
   const [modelName, setModelName] = useState('');
   const [selectedBaseModel, setSelectedBaseModel] = useState<AIModel | null>(null);
   const [systemInstructions, setSystemInstructions] = useState('');
-  const [openingStatement, setOpeningStatement] = useState('');
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -102,8 +101,7 @@ export const CreateModel = () => {
         body: JSON.stringify({
           name: modelName,
           baseModel: selectedBaseModel?.id,
-          systemInstructions,
-          openingStatement
+          systemInstructions
         })
       });
 
@@ -222,19 +220,6 @@ export const CreateModel = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Opening Statement <span className="text-red-400">*</span>
-                </label>
-                <textarea
-                  value={openingStatement}
-                  onChange={(e) => setOpeningStatement(e.target.value)}
-                  required
-                  rows={4}
-                  className="w-full px-3 py-3 bg-white border border-gray-300 rounded text-gray-900 placeholder-slate-400 resize-y focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-gray-500 transition-colors"
-                  placeholder="How should this model introduce itself or start conversations?"
-                />
-              </div>
             </div>
           </div>
 
@@ -320,7 +305,7 @@ export const CreateModel = () => {
             </button>
             <button
               type="submit"
-              disabled={isLoading || !modelName || !selectedBaseModel || !systemInstructions || !openingStatement}
+              disabled={isLoading || !modelName || !selectedBaseModel || !systemInstructions}
               className="px-8 py-3 bg-gray-600 text-white font-medium rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
             >
               {isLoading ? (

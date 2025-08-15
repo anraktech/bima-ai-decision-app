@@ -80,6 +80,48 @@ async function applyDatabaseMigrations() {
   try {
     console.log('🔄 Applying database migrations...');
     
+    // Fix community_posts table column name if needed
+    try {
+      // Check if community_posts table exists with wrong column name
+      const tableCheck = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_name = 'community_posts'
+        )
+      `);
+      
+      if (tableCheck.rows[0].exists) {
+        const columnCheck = await pool.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'community_posts' 
+          AND column_name = 'model_token'
+        `);
+        
+        if (columnCheck.rows.length > 0) {
+          // Rename column from model_token to modelToken
+          await pool.query(`
+            ALTER TABLE community_posts 
+            RENAME COLUMN model_token TO "modelToken"
+          `);
+          console.log('✅ Fixed community_posts column name from model_token to modelToken');
+        }
+      }
+    } catch (migrationError) {
+      console.log('ℹ️  Community posts migration:', migrationError.message);
+    }
+    
+    // Add import_count column if it doesn't exist
+    try {
+      await pool.query(`
+        ALTER TABLE community_posts 
+        ADD COLUMN IF NOT EXISTS import_count INTEGER DEFAULT 0
+      `);
+      console.log('✅ Added import_count column to community_posts');
+    } catch (err) {
+      // Column might already exist
+    }
+    
     // Migration 1: Handle models table schema updates
     try {
       // Check if we have custom_models table but not models table
@@ -136,6 +178,22 @@ async function applyDatabaseMigrations() {
   }
 }
 
+// Debug endpoint to check database schema (remove after verification)
+app.get('/api/debug/schema', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'models' 
+      ORDER BY ordinal_position
+    `);
+    res.json({ columns: result.rows });
+  } catch (error) {
+    console.error('Schema debug error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 async function initializeDatabase() {
   try {
     // Check if database URL is available
@@ -174,8 +232,6 @@ async function initializeDatabase() {
         display_name VARCHAR(255),
         base_model VARCHAR(255) NOT NULL,
         system_prompt TEXT,
-        system_instructions TEXT,
-        opening_statement TEXT,
         description TEXT,
         tags TEXT[],
         documents JSONB DEFAULT '[]',
@@ -183,6 +239,38 @@ async function initializeDatabase() {
         is_public BOOLEAN DEFAULT FALSE,
         is_imported BOOLEAN DEFAULT FALSE,
         original_model_id INTEGER,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS documents (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        model_id INTEGER REFERENCES models(id) ON DELETE CASCADE,
+        original_name VARCHAR(255) NOT NULL,
+        filename VARCHAR(255) NOT NULL,
+        file_type VARCHAR(100),
+        file_size INTEGER,
+        content TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS community_posts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        username VARCHAR(255) NOT NULL,
+        title VARCHAR(500) NOT NULL,
+        description TEXT NOT NULL,
+        modelToken VARCHAR(255) NOT NULL,
+        tags TEXT[],
+        likes INTEGER DEFAULT 0,
+        views INTEGER DEFAULT 0,
+        import_count INTEGER DEFAULT 0,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
@@ -979,11 +1067,23 @@ app.get('/api/models/providers', (req, res) => {
 // Models endpoints
 app.get('/api/models', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM models WHERE user_id = $1 ORDER BY created_at DESC',
-      [req.user.id]
-    );
-    res.json(result.rows);
+    const result = await pool.query(`
+      SELECT m.*, COUNT(d.id) as document_count 
+      FROM models m 
+      LEFT JOIN documents d ON m.id = d.model_id 
+      WHERE m.user_id = $1 
+      GROUP BY m.id 
+      ORDER BY m.created_at DESC
+    `, [req.user.id]);
+    
+    // Map database fields to frontend expectations
+    const models = result.rows.map(model => ({
+      ...model,
+      system_instructions: model.system_prompt,
+      document_count: parseInt(model.document_count) || 0
+    }));
+    
+    res.json(models);
   } catch (error) {
     console.error('Error fetching models:', error);
     res.status(500).json({ error: 'Failed to fetch models' });
@@ -992,17 +1092,17 @@ app.get('/api/models', authenticateToken, async (req, res) => {
 
 app.post('/api/models', authenticateToken, async (req, res) => {
   try {
-    const { name, baseModel, systemInstructions, openingStatement, description, tags } = req.body;
+    const { name, baseModel, systemInstructions, description, tags } = req.body;
 
     if (!name || !baseModel || !systemInstructions) {
       return res.status(400).json({ error: 'Name, base model, and system instructions are required' });
     }
 
     const result = await pool.query(`
-      INSERT INTO models (user_id, name, base_model, system_prompt, system_instructions, opening_statement, description, tags, is_public)
-      VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8)
+      INSERT INTO models (user_id, name, base_model, system_prompt, description, tags, is_public)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
-    `, [req.user.id, name, baseModel, systemInstructions, openingStatement, description, tags, false]);
+    `, [req.user.id, name, baseModel, systemInstructions, description, tags, false]);
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -1023,7 +1123,11 @@ app.get('/api/models/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Model not found' });
     }
     
-    res.json(result.rows[0]);
+    // Map database fields to frontend expectations
+    const model = result.rows[0];
+    model.system_instructions = model.system_prompt; // Map system_prompt to system_instructions
+    
+    res.json(model);
   } catch (error) {
     console.error('Error fetching model:', error);
     res.status(500).json({ error: 'Failed to fetch model' });
@@ -1033,14 +1137,14 @@ app.get('/api/models/:id', authenticateToken, async (req, res) => {
 // Update model
 app.put('/api/models/:id', authenticateToken, async (req, res) => {
   try {
-    const { name, baseModel, systemInstructions, openingStatement, description, tags } = req.body;
+    const { name, baseModel, systemInstructions, description, tags } = req.body;
     
     const result = await pool.query(`
       UPDATE models 
-      SET name = $1, base_model = $2, system_prompt = $3, system_instructions = $3, opening_statement = $4, description = $5, tags = $6, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7 AND user_id = $8
+      SET name = $1, base_model = $2, system_prompt = $3, description = $4, tags = $5, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6 AND user_id = $7
       RETURNING *
-    `, [name, baseModel, systemInstructions, openingStatement, description, tags, req.params.id, req.user.id]);
+    `, [name, baseModel, systemInstructions, description, tags, req.params.id, req.user.id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Model not found' });
@@ -1076,10 +1180,21 @@ app.delete('/api/models/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Generate short, user-friendly share token
+const generateShareToken = () => {
+  const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars like 0,O,1,I
+  let token = '';
+  for (let i = 0; i < 8; i++) {
+    if (i === 4) token += '-';
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+};
+
 // Share model
 app.post('/api/models/:id/share', authenticateToken, async (req, res) => {
   try {
-    const shareToken = crypto.randomUUID();
+    const shareToken = generateShareToken();
     
     const result = await pool.query(`
       UPDATE models 
@@ -1122,19 +1237,29 @@ app.post('/api/models/import', authenticateToken, async (req, res) => {
     
     // Create imported copy
     const result = await pool.query(`
-      INSERT INTO models (user_id, name, base_model, system_prompt, system_instructions, opening_statement, description, tags, is_imported, original_model_id)
-      VALUES ($1, $2, $3, $4, $4, $5, $6, $7, true, $8)
+      INSERT INTO models (user_id, name, base_model, system_prompt, description, tags, is_imported, original_model_id)
+      VALUES ($1, $2, $3, $4, $5, $6, true, $7)
       RETURNING *
     `, [
       req.user.id,
       `${original.name} (Imported)`,
       original.base_model,
-      original.system_prompt || original.system_instructions,
-      original.opening_statement,
+      original.system_prompt,
       original.description,
       original.tags,
       original.id
     ]);
+    
+    // Increment import count in community posts if this model has a community post
+    try {
+      await pool.query(`
+        UPDATE community_posts 
+        SET import_count = import_count + 1 
+        WHERE modelToken = $1
+      `, [shareToken]);
+    } catch (err) {
+      // Ignore if no community post exists
+    }
     
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -1273,12 +1398,12 @@ app.post('/api/models/:id/documents', authenticateToken, upload.array('documents
     if (uploadedDocs.length > 0) {
       // Get current model system instructions
       const modelQuery = await pool.query(
-        'SELECT system_prompt, system_instructions FROM models WHERE id = $1 AND user_id = $2',
+        'SELECT system_prompt FROM models WHERE id = $1 AND user_id = $2',
         [req.params.id, req.user.id]
       );
       
       if (modelQuery.rows.length > 0) {
-        const currentInstructions = modelQuery.rows[0].system_prompt || modelQuery.rows[0].system_instructions || '';
+        const currentInstructions = modelQuery.rows[0].system_prompt || '';
         
         // Prepare document content to append
         const documentSections = uploadedDocs.map(doc => {
@@ -1290,9 +1415,9 @@ app.post('/api/models/:id/documents', authenticateToken, upload.array('documents
           '--- Uploaded Documents ---' + 
           documentSections;
         
-        // Update model with new system instructions (both columns for compatibility)
+        // Update model with new system instructions
         await pool.query(
-          'UPDATE models SET system_prompt = $1, system_instructions = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND user_id = $3',
+          'UPDATE models SET system_prompt = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND user_id = $3',
           [updatedInstructions, req.params.id, req.user.id]
         );
         
@@ -1302,11 +1427,21 @@ app.post('/api/models/:id/documents', authenticateToken, upload.array('documents
     
     res.status(201).json({
       success: true,
-      documents: uploadedDocs
+      documents: uploadedDocs.map(doc => ({
+        id: doc.id,
+        name: doc.original_name,
+        size: doc.file_size,
+        type: doc.file_type
+      })),
+      count: uploadedDocs.length,
+      message: `Successfully uploaded ${uploadedDocs.length} document${uploadedDocs.length > 1 ? 's' : ''}`
     });
   } catch (error) {
     console.error('Error uploading documents:', error);
-    res.status(500).json({ error: 'Failed to upload documents' });
+    res.status(500).json({ 
+      error: 'Failed to upload documents',
+      details: error.message 
+    });
   }
 });
 
@@ -1390,6 +1525,114 @@ app.get('/api/user/profile', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching user profile:', error);
     res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+});
+
+// Community Posts Endpoints
+app.get('/api/community/posts', async (req, res) => {
+  try {
+    const { sort = 'newest' } = req.query;
+    
+    let orderBy = 'created_at DESC'; // Default to newest
+    
+    switch(sort) {
+      case 'most_imported':
+        orderBy = 'import_count DESC, created_at DESC';
+        break;
+      case 'most_liked':
+        orderBy = 'likes DESC, created_at DESC';
+        break;
+      case 'newest':
+      default:
+        orderBy = 'created_at DESC';
+        break;
+    }
+    
+    const result = await pool.query(`
+      SELECT id, username, title, description, modelToken as model_token, tags, 
+             likes, views, import_count, created_at as timestamp 
+      FROM community_posts 
+      ORDER BY ${orderBy}
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching community posts:', error);
+    res.status(500).json({ error: 'Failed to fetch community posts' });
+  }
+});
+
+app.post('/api/community/posts', authenticateToken, async (req, res) => {
+  try {
+    const { title, description, modelToken, tags } = req.body;
+    
+    if (!title || !description || !modelToken) {
+      return res.status(400).json({ error: 'Title, description, and model token are required' });
+    }
+
+    // Get user info for the post
+    const userResult = await pool.query(
+      'SELECT name, email FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.rows[0];
+    const username = user.name || user.email.split('@')[0];
+
+    const result = await pool.query(`
+      INSERT INTO community_posts (user_id, username, title, description, modelToken, tags)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, username, title, description, modelToken as model_token, tags, likes, views, 
+               import_count, created_at as timestamp
+    `, [req.user.id, username, title, description, modelToken.toUpperCase(), tags || []]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating community post:', error);
+    res.status(500).json({ error: 'Failed to create community post' });
+  }
+});
+
+app.post('/api/community/posts/:id/like', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      UPDATE community_posts 
+      SET likes = likes + 1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING likes
+    `, [req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    res.json({ likes: result.rows[0].likes });
+  } catch (error) {
+    console.error('Error liking post:', error);
+    res.status(500).json({ error: 'Failed to like post' });
+  }
+});
+
+app.delete('/api/community/posts/:id/like', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      UPDATE community_posts 
+      SET likes = GREATEST(likes - 1, 0), updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING likes
+    `, [req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    res.json({ likes: result.rows[0].likes });
+  } catch (error) {
+    console.error('Error unliking post:', error);
+    res.status(500).json({ error: 'Failed to unlike post' });
   }
 });
 

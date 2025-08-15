@@ -126,7 +126,7 @@ export const MODEL_TIERS: Record<string, string> = {
   'nvidia/llama-3.1-nemotron-ultra-253b-v1': 'ultra_premium',
 
   // Premium ($2-10 per 1M output tokens)
-  'openai/gpt-4o': 'premium',
+  'openai/gpt-4o': 'standard',
   'openai/gpt-4.1': 'premium',
   'openai/o1-pro': 'premium',
   'openai/o1': 'premium',
@@ -141,6 +141,12 @@ export const MODEL_TIERS: Record<string, string> = {
   'deepseek/deepseek-r1': 'premium',
   'deepseek/deepseek-chat': 'premium',
   'meta-llama/llama-4-maverick': 'premium',
+
+  // Standard tier models (unlimited usage)
+  'gpt-4o': 'standard',
+  'llama-3.3-70b-versatile': 'standard',
+  'meta-llama/llama-3.3-70b-instruct': 'standard',
+  'meta-llama/llama-3.3-70b-instruct:free': 'free',
 
   // Default fallback logic
   default: 'standard'
@@ -161,8 +167,8 @@ export const getModelTier = (modelId: string): keyof TierLimits => {
     return 'ultra_premium';
   }
   
-  // Premium patterns
-  if (id.includes('gpt-4o') || id.includes('claude-3.5') || id.includes('gemini-2.5') || 
+  // Premium patterns (excluding gpt-4o which is now standard)
+  if (id.includes('claude-3.5') || id.includes('gemini-2.5') || 
       id.includes('grok-3') || id.includes('deepseek-r1') || id.includes('o1-pro')) {
     return 'premium';
   }

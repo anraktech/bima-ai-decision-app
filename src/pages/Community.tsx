@@ -15,6 +15,7 @@ interface CommunityPost {
   achievements?: string[]; // Optional - calculated based on likes/views
   likes: number;
   views: number;
+  import_count: number;
   timestamp: string;
   tags: string[];
 }
@@ -27,7 +28,7 @@ export function Community() {
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'newest' | 'popular' | 'trending'>('popular');
+  const [sortBy, setSortBy] = useState<'newest' | 'most_liked' | 'most_imported'>('newest');
   const [loading, setLoading] = useState(true);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [newPost, setNewPost] = useState({
@@ -37,12 +38,12 @@ export function Community() {
     tags: ''
   });
 
-  // Load posts on component mount
+  // Load posts on component mount and when sorting changes
   useEffect(() => {
     const loadPosts = async () => {
       try {
         // No authentication needed for viewing posts (public forum)
-        const response = await fetch(`${API_URL}/api/community/posts`);
+        const response = await fetch(`${API_URL}/api/community/posts?sort=${sortBy}`);
         
         if (response.ok) {
           const data = await response.json();
@@ -60,7 +61,7 @@ export function Community() {
     };
     
     loadPosts();
-  }, []);
+  }, [sortBy]);
 
   const copyToken = (token: string) => {
     navigator.clipboard.writeText(token);
@@ -194,17 +195,21 @@ export function Community() {
       <div className="max-w-6xl mx-auto px-6 py-4">
         <div className="flex items-center space-x-4">
           <span className="text-sm font-medium text-gray-700">Sort by:</span>
-          {(['popular', 'newest', 'trending'] as const).map((option) => (
+          {[
+            { value: 'newest', label: 'Newest' },
+            { value: 'most_liked', label: 'Most Liked' },
+            { value: 'most_imported', label: 'Most Imported' }
+          ].map((option) => (
             <button
-              key={option}
-              onClick={() => setSortBy(option)}
+              key={option.value}
+              onClick={() => setSortBy(option.value as any)}
               className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                sortBy === option
+                sortBy === option.value
                   ? 'bg-orange-500 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
               }`}
             >
-              {option.charAt(0).toUpperCase() + option.slice(1)}
+              {option.label}
             </button>
           ))}
         </div>
@@ -252,12 +257,16 @@ export function Community() {
                   </div>
                   <div className="flex items-center space-x-4 text-sm text-gray-500">
                     <div className="flex items-center space-x-1">
-                      <Eye className="h-4 w-4" />
-                      <span>{post.views.toLocaleString()}</span>
+                      <Download className="h-4 w-4" />
+                      <span>{post.import_count || 0} imports</span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <Star className="h-4 w-4" />
-                      <span>{post.likes}</span>
+                      <span>{post.likes} likes</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <Eye className="h-4 w-4" />
+                      <span>{post.views.toLocaleString()} views</span>
                     </div>
                   </div>
                 </div>
