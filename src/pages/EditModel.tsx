@@ -213,13 +213,21 @@ export const EditModel = () => {
           }
         });
 
-        await fetch(`${API_URL}/api/models/${id}/documents`, {
+        const documentResponse = await fetch(`${API_URL}/api/models/${id}/documents`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`
           },
           body: formData
         });
+
+        if (!documentResponse.ok) {
+          const errorData = await documentResponse.json().catch(() => ({ error: 'Failed to upload documents' }));
+          throw new Error(`Document upload failed: ${errorData.error || 'Unknown error'}`);
+        }
+
+        const uploadResult = await documentResponse.json();
+        console.log('Documents uploaded successfully:', uploadResult);
       }
 
       navigate('/models');
